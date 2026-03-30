@@ -1,0 +1,89 @@
+import { verifyToken } from '$lib/server/auth';
+
+/** @type {import('@sveltejs/kit').Handle} */
+export async function handle({ event, resolve }) {
+    // 🛡️ Path Normalization: Fix //api/ paths to /api/
+    if (event.url.pathname.includes('//')) {
+        const normalizedPath = event.url.pathname.replace(/\/+/g, '/');
+        event.url.pathname = normalizedPath;
+    }
+
+	// 🛡️ Handle CORS Preflight correctly
+	if (event.request.method === 'OPTIONS') {
+        const origin = event.request.headers.get('origin');
+		return new Response(null, {
+			headers: {
+				'Access-Control-Allow-Origin': origin || 'https://192.168.0.166:5173',
+				'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
+				'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-sveltekit-action',
+                'Access-Control-Allow-Credentials': 'true',
+                'Access-Control-Max-Age': '86400'
+			}
+		});
+	}
+
+    // 🛡️ AUTHENTICATION: Read and Verify Token from HttpOnly Cookie
+    const token = event.cookies.get('token');
+    event.locals.user = null; // Default to unauthenticated
+
+    if (token) {
+        try {
+            const payload = await verifyToken(token, event.platform.env.JWT_SECRET);
+            if (payload) {
+                event.locals.user = payload; // Inject verified identity into locals
+            }
+        } catch (e) {
+            console.error('[hooks] Token verification error:', e.message);
+        }
+    }
+
+    // 🛡️ CENTRALIZED GUARD: Require authentication for specific API paths (Wildcard: /api/user/*)
+    const { pathname } = event.url;
+    
+    // Areas requiring valid authentication
+    const protectedPaths = ['/api/user/', '/api/businesses/', '/api/admin/', '/api/auth/user/'];
+    const isProtectedArea = protectedPaths.some(path => pathname.startsWith(path));
+    
+    // EXCEPTION: Allow login, registration, and public categories list
+    const isPublicAuthRoute = pathname.endsWith('/login') || pathname.endsWith('/register');
+    const isPublicCategoryRoute = pathname === '/api/admin/categories' && event.request.method === 'GET';
+
+    // 🔒 AUTH CHECK: Check if the user is authenticated 
+    const isAuthenticated = !!event.locals.user;
+
+    // EXCEPTION: Allow public business GET requests
+    const isPublicBusinessRoute = pathname.startsWith('/api/businesses/') && event.request.method === 'GET';
+
+    if (isProtectedArea && !isPublicAuthRoute && !isPublicCategoryRoute && !isPublicBusinessRoute) {
+        // 1. Check if token is simply missing or invalid
+        if (!isAuthenticated) {
+            return new Response(JSON.stringify({ message: 'Unauthorized: Token validation failed or missing' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+
+        // 2. Strict Role Check: All /api/admin/* paths REQUIRE role === 'admin'
+        if (pathname.startsWith('/api/admin/') && event.locals.user.role !== 'admin') {
+            return new Response(JSON.stringify({ message: 'Unauthorized: Admin privileges required' }), {
+                status: 401,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+    }
+
+    const response = await resolve(event);
+
+    const origin = event.request.headers.get('origin');
+	if (origin) {
+        response.headers.set('Access-Control-Allow-Origin', origin);
+    } else {
+        response.headers.set('Access-Control-Allow-Origin', 'https://192.168.0.166:5173');
+    }
+    
+	response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+	response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-sveltekit-action');
+    response.headers.set('Access-Control-Allow-Credentials', 'true');
+
+	return response;
+}

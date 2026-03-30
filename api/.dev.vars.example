@@ -1,0 +1,6 @@
+# Copy this file to .dev.vars and fill in your values.
+# Used by Wrangler for local development (equivalent of .env).
+# For production deployment, use: npx wrangler secret put <KEY>
+
+JWT_SECRET="your-strong-secret-here"
+PUBLIC_APP_NAME = "nearbuy"

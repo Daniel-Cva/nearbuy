@@ -1,0 +1,39 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "nearbuy-api",
+	"compatibility_date": "2026-03-12",
+	"compatibility_flags": [
+		"nodejs_als"
+	],
+	"main": ".svelte-kit/cloudflare/_worker.js",
+	"assets": {
+		"binding": "ASSETS",
+		"directory": ".svelte-kit/cloudflare"
+	},
+	"workers_dev": true,
+	"preview_urls": true,
+	"dev": {
+		"local_protocol": "https",
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "nearbuy",
+			"database_id": "65a27d4c-bfa5-466e-9b18-2a4cadef413f",
+			"remote": true
+		},
+		{
+			"binding": "PINCODEDB",
+			"database_name": "pincodes",
+			"database_id": "4a2f7ba5-2329-4588-a5ca-844ebe64981a",
+			"remote": true
+		}
+	],
+	"r2_buckets": [
+		{
+			"bucket_name": "nearbuy",
+			"binding": "nearbuy_storage",
+			"remote": true
+		}
+	]
+}
