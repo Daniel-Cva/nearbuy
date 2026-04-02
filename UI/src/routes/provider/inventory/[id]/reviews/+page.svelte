@@ -1,28 +1,49 @@
 <script>
 	import { page } from '$app/stores';
+	import { onMount } from 'svelte';
+	import { API_BASE_URL } from '$lib/helpers/config.js';
+
 	const itemId = $page.params.id;
-
-	const item = {
-		id: itemId,
-		name: 'iPhone 15 Case',
-		rating: 4.6,
-		reviewsCount: 42
-	};
-
-	const reviews = [
-		{ id: 1, user: 'Arun K', rating: 5, comment: 'Great quality, fits perfectly!', date: '2026-02-28', status: 'verified' },
-		{ id: 2, user: 'Priya M', rating: 4, comment: 'Good grip, nice colors.', date: '2026-02-25', status: 'verified' },
-		{ id: 3, user: 'Rahul S', rating: 5, comment: 'Value for money. The blue color is stunning.', date: '2026-02-20', status: 'verified' },
-		{ id: 4, user: 'Deepa R', rating: 4, comment: 'A bit pricey but quality is top-notch.', date: '2026-02-15', status: 'unverified' },
-		{ id: 5, user: 'Vikram Ch', rating: 3, comment: 'Took too long to deliver, but product is okay.', date: '2026-02-10', status: 'verified' },
-		{ id: 6, user: 'Santhosh', rating: 5, comment: 'Best case I ever bought.', date: '2026-02-05', status: 'verified' },
-		{ id: 7, user: 'Anjali', rating: 4, comment: 'Very soft inside, protects well.', date: '2026-01-30', status: 'verified' }
-	];
+	let item = $state({ id: itemId, name: 'Loading...', rating: 0, reviewsCount: 0 });
+	let reviews = $state([]);
+	let loading = $state(true);
+	let errorMsg = $state('');
 
 	let filter = $state('all');
 	let filteredReviews = $derived(
 		filter === 'all' ? reviews : reviews.filter(r => r.rating === parseInt(filter))
 	);
+
+	onMount(async () => {
+		try {
+			// Fetch Item details
+			const iRes = await fetch(`${API_BASE_URL}/api/items/${itemId}`);
+			if (iRes.ok) {
+				const iData = await iRes.json();
+				item.name = iData.product_name;
+			}
+
+			// Fetch Reviews
+			const rRes = await fetch(`${API_BASE_URL}/api/reviews?item_id=${itemId}`);
+			if (rRes.ok) {
+				reviews = await rRes.json();
+				item.reviewsCount = reviews.length;
+				if (reviews.length > 0) {
+					const sum = reviews.reduce((s, r) => s + (r.rating || 0), 0);
+					item.rating = (sum / reviews.length).toFixed(1);
+				}
+			}
+		} catch (err) {
+			errorMsg = err.message;
+		} finally {
+			loading = false;
+		}
+	});
+
+	function formatDate(d) {
+		if (!d) return '';
+		return new Date(d).toLocaleDateString();
+	}
 </script>
 
 <svelte:head>
@@ -79,26 +100,30 @@
 			{#each filteredReviews as review}
 				<div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
 					<div class="mb-3 flex items-start justify-between">
-						<div>
-							<p class="font-bold text-gray-900 dark:text-white flex items-center gap-2">
-								{review.user}
-								{#if review.status === 'verified'}
-									<span class="inline-flex h-4 w-4 items-center justify-center rounded-full bg-blue-100 text-[8px] text-blue-600 dark:bg-blue-500/20">✓</span>
+						<div class="flex items-center gap-3">
+							<div class="h-10 w-10 overflow-hidden rounded-full bg-orange-100 dark:bg-orange-500/10">
+								{#if review.avatar_url}
+									<img src={review.avatar_url} alt="User" class="h-full w-full object-cover" />
+								{:else}
+									<div class="flex h-full items-center justify-center text-orange-500 font-bold">
+										{review.firstname?.[0] ?? 'U'}
+									</div>
 								{/if}
-							</p>
-							<p class="text-[10px] font-bold text-gray-400">{review.date}</p>
+							</div>
+							<div>
+								<p class="font-bold text-gray-900 dark:text-white">
+									{review.firstname ?? 'Anonymous'} {review.lastname ?? ''}
+								</p>
+								<p class="text-[10px] font-bold text-gray-400">{formatDate(review.created_at)}</p>
+							</div>
 						</div>
-						<div class="flex items-center gap-0.5 text-xs text-yellow-500">
-							{'⭐'.repeat(review.rating)}
+						<div class="flex items-center gap-0.5 text-xs text-yellow-500 font-black">
+							⭐ {review.rating}
 						</div>
 					</div>
 					<p class="text-sm font-medium leading-relaxed text-gray-600 dark:text-gray-300">
-						{review.comment}
+						{review.review_text}
 					</p>
-					<div class="mt-4 flex gap-2">
-						<button class="rounded-lg bg-gray-50 px-3 py-1.5 text-[10px] font-bold text-gray-500 hover:bg-gray-100 dark:bg-gray-800/50">Reply</button>
-						<button class="rounded-lg bg-gray-50 px-3 py-1.5 text-[10px] font-bold text-gray-500 hover:bg-gray-100 dark:bg-gray-800/50">Report</button>
-					</div>
 				</div>
 			{:else}
 				<div class="flex flex-col items-center justify-center py-12 text-center opacity-40">

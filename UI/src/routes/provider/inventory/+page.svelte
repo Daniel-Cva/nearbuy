@@ -12,12 +12,17 @@
 	let search   = $state('');
 	let view     = $state('grid');
 	let deleting = $state('');   // itemId being deleted
+	let selectedCategory = $state(''); // for filtering
 
 	// In-memory filter — no extra API calls
+	const categories = $derived([...new Set(items.map(i => i.category).filter(Boolean))].sort());
+	
 	const filtered = $derived(
-		search.trim()
-			? items.filter(i => i.product_name?.toLowerCase().includes(search.toLowerCase()))
-			: items
+		items.filter(i => {
+			const matchesSearch = !search.trim() || i.product_name?.toLowerCase().includes(search.toLowerCase());
+			const matchesCat = !selectedCategory || i.category === selectedCategory;
+			return matchesSearch && matchesCat;
+		})
 	);
 
 	// ── Load bizId from /api/me, then load items ──────────────────────────────
@@ -41,7 +46,7 @@
 	async function loadItems() {
 		loading = true;
 		try {
-			const res = await fetch(`${API_BASE_URL}/api/businesses/${bizId}/items`, {
+			const res = await fetch(`${API_BASE_URL}/api/items?business_id=${bizId}`, {
 				credentials: 'include',
 				headers: { 'Accept': 'application/json' }
 			});
@@ -59,7 +64,7 @@
 		if (!confirm('Delete this item? This cannot be undone.')) return;
 		deleting = itemId;
 		try {
-			const res = await fetch(`${API_BASE_URL}/api/businesses/${bizId}/items/${itemId}`, {
+			const res = await fetch(`${API_BASE_URL}/api/items/${itemId}`, {
 				method: 'DELETE',
 				credentials: 'include'
 			});
@@ -74,15 +79,25 @@
 
 	// Helpers
 	function firstImage(item) {
-		const imgs = item.image ?? item.images ?? [];
-		const first = Array.isArray(imgs) ? imgs[0] : imgs;
+		let raw = item.image ?? item.images ?? [];
+		const unroll = (val) => {
+			if (typeof val === 'string') {
+				const t = val.trim();
+				if (t.startsWith('[') || t.startsWith('{')) {
+					try {
+						let p;
+						try { p = JSON.parse(t); } catch(e) { p = JSON.parse(t.replace(/'/g, '"')); }
+						return unroll(p);
+					} catch(e) { return [t]; }
+				}
+				return t ? [t] : [];
+			}
+			if (Array.isArray(val)) return val.flatMap(v => unroll(v));
+			return val ? [val] : [];
+		};
+		const arr = unroll(raw);
+		const first = arr.filter(Boolean)[0];
 		return first ? toDisplayUrl(first) : '';
-	}
-	function formatPrice(item) {
-		return item.selling_price != null ? `₹${item.selling_price}` : '—';
-	}
-	function formatMrp(item) {
-		return item.mrp != null ? `₹${item.mrp}` : '';
 	}
 </script>
 
@@ -122,12 +137,24 @@
 
 		<!-- Controls -->
 		<div class="mb-6 flex gap-3">
-			<div class="relative flex-1">
+			<div class="relative flex-1 max-w-sm">
 				<Icon icon="mdi:magnify" width="16" height="16" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
-				<input type="text" bind:value={search} placeholder="Search inventory..."
+				<input type="text" bind:value={search} placeholder="Search products..."
 					class="w-full rounded-xl border border-gray-300 bg-white pl-9 pr-4 py-2.5 text-sm placeholder-gray-400 focus:border-orange-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white dark:placeholder-gray-500" />
 			</div>
-			<div class="flex overflow-hidden rounded-xl border border-gray-300 dark:border-gray-700">
+			
+			<div class="relative flex-1 min-w-[150px] max-w-[200px]">
+				<select bind:value={selectedCategory}
+					class="w-full appearance-none rounded-xl border border-gray-300 bg-white px-4 py-2.5 pr-10 text-sm focus:border-orange-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white">
+					<option value="">All Categories</option>
+					{#each categories as cat}
+						<option value={cat}>{cat}</option>
+					{/each}
+				</select>
+				<Icon icon="mdi:chevron-down" width="16" height="16" class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+			</div>
+			
+			<div class="flex ml-auto overflow-hidden rounded-xl border border-gray-300 dark:border-gray-700">
 				<button id="view-grid" onclick={() => (view = 'grid')}
 					class={`px-3 py-2 transition-all ${view === 'grid' ? 'bg-orange-500 text-white' : 'text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800'}`}>
 					<Icon icon="mdi:view-grid-outline" width="16" height="16" />
@@ -198,17 +225,10 @@
 								</button>
 							</div>
 
-							<!-- Nos badge -->
-							{#if item.nos != null}
-								<div class="absolute left-2 top-2 z-20 rounded-lg bg-black/60 px-2 py-0.5 text-[10px] font-black text-white backdrop-blur-md">
-									{item.nos} units
-								</div>
-							{/if}
-
-							<!-- Platform badge -->
-							{#if item.sold_via_platform}
-								<div class="absolute right-2 top-2 z-20 rounded-lg bg-orange-500 px-1.5 py-0.5 text-[10px] font-black text-white">
-									NearBuy
+							<!-- Type badge -->
+							{#if item.item_type}
+								<div class="absolute left-2 top-2 z-20 rounded-lg bg-black/60 px-2 py-0.5 text-[10px] font-black text-white backdrop-blur-md uppercase tracking-wide">
+									{item.item_type}
 								</div>
 							{/if}
 						</div>
@@ -219,13 +239,15 @@
 								<p class="mt-0.5 text-[10px] font-black uppercase tracking-widest text-gray-400">{item.brand}</p>
 							{/if}
 							<div class="mt-auto flex items-end justify-between pt-3">
-								<div>
-									<p class="text-base font-black text-orange-600 dark:text-orange-400">{formatPrice(item)}</p>
-									{#if formatMrp(item)}
-										<p class="text-[10px] font-medium text-gray-400 line-through">{formatMrp(item)}</p>
+								<div class="flex items-center gap-1.5 flex-wrap">
+									{#if item.item_type}
+										<p class="text-[10px] font-black tracking-widest text-gray-500 uppercase px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800">{item.item_type}</p>
+									{/if}
+									{#if item.category}
+										<p class="text-[10px] font-bold text-orange-500 bg-orange-50 dark:bg-orange-500/10 px-1.5 py-0.5 rounded-md">{item.category}</p>
 									{/if}
 								</div>
-								<span class="text-[10px] font-bold text-gray-400">#{item.id}</span>
+								<span class="text-[10px] font-bold text-gray-400 shrink-0">#{item.id.slice(-6)}</span>
 							</div>
 						</a>
 					</div>
@@ -248,22 +270,20 @@
 						</a>
 						<div class="flex-1 min-w-0">
 							<h3 class="font-bold text-gray-900 dark:text-white truncate">{item.product_name}</h3>
-							<div class="flex items-center gap-2 mt-0.5">
+							<div class="flex items-center gap-2 mt-1">
 								{#if item.brand}
 									<span class="text-[10px] font-black uppercase tracking-widest text-gray-400">{item.brand}</span>
 								{/if}
-								{#if item.nos != null}
-									<span class="text-[10px] font-semibold text-gray-500">{item.nos} units</span>
+								{#if item.item_type}
+									<span class="text-[10px] font-black tracking-widest text-gray-500 uppercase px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-800">{item.item_type}</span>
+								{/if}
+								{#if item.category}
+									<span class="text-[10px] font-bold text-orange-500 bg-orange-50 dark:bg-orange-500/10 px-1.5 py-0.5 rounded-md">{item.category}</span>
 								{/if}
 							</div>
 						</div>
 						<div class="flex items-center gap-3 shrink-0">
-							<div class="text-right">
-								<p class="font-black text-orange-600 dark:text-orange-400">{formatPrice(item)}</p>
-								{#if formatMrp(item)}
-									<p class="text-[10px] font-medium text-gray-400 line-through">{formatMrp(item)}</p>
-								{/if}
-							</div>
+
 							<a href={`/provider/inventory/${item.id}/edit`} class="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-100 hover:bg-orange-500 hover:text-white transition-colors dark:bg-gray-800 text-gray-600 dark:text-gray-400">
 								<Icon icon="mdi:pencil-outline" width="14" height="14" />
 							</a>

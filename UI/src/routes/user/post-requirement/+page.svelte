@@ -164,7 +164,10 @@
 		return Array.isArray(current) ? current : Object.keys(current);
 	}
 
-	function handleSubmit(e) {
+	let submitError = $state('');
+	let isSubmitting = $state(false);
+
+	async function handleSubmit(e) {
 		e.preventDefault();
 		
 		if (categoryPath.length === 0) {
@@ -174,21 +177,43 @@
 		
 		const budget = form.minBudget && form.maxBudget ? `₹${form.minBudget} - ₹${form.maxBudget}` : form.minBudget ? `Above ₹${form.minBudget}` : '';
 
-		const req = {
-			id: `req_${Date.now()}`,
-			userId: getCurrentUserId() || 'usr_anonymous',
-			title: form.title,
-			description: form.description,
-			category: categoryPath.join(' > '),
-			type: categoryPath[0].toLowerCase(),
-			budget,
+		const payload = {
+			description: { title: form.title, detail: form.description, budget },
+			category: [categoryPath[0] || ''],
+			sub_categories: categoryPath.slice(1),
 			lat: parseFloat(form.lat) || 13.0827,
 			lng: parseFloat(form.lng) || 80.2707,
-			address: `${form.address1}, ${form.city}, ${form.pincode}`
+			address: `${form.address1}${form.address2 ? ', ' + form.address2 : ''}`,
+			city: form.city,
+			district: form.district,
+			pincode: form.pincode
 		};
 
 		categoryError = '';
-		window.location.href = `/user/radar-search?id=${req.id}`;
+		submitError = '';
+		isSubmitting = true;
+
+		try {
+			const response = await fetch(`${API_BASE_URL}/api/requests`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify(payload)
+			});
+
+			if (!response.ok) {
+				const err = await response.json();
+				throw new Error(err.message || err.error || 'Failed to post requirement');
+			}
+
+			const result = await response.json();
+			window.location.href = `/user/radar-search?id=${result.id}`;
+		} catch (error) {
+			console.error('Submit error', error);
+			submitError = error.message;
+		} finally {
+			isSubmitting = false;
+		}
 	}
 </script>
 
@@ -431,13 +456,25 @@
 				<input id="req-attachments" type="file" multiple accept="image/*,.pdf" class="hidden" />
 			</div>
 
+			<!-- Error Output -->
+			{#if submitError}
+				<div class="rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm font-semibold text-red-500">
+					🚨 {submitError}
+				</div>
+			{/if}
+
 			<!-- Submit -->
 			<button
 				id="btn-search-provider"
 				type="submit"
-				class="w-full rounded-2xl bg-linear-to-r from-orange-500 to-orange-600 py-4 text-lg font-bold text-white shadow-[0_8px_32px_-4px_rgba(249,115,22,0.55)] transition-all hover:-translate-y-1 hover:shadow-[0_12px_36px_-4px_rgba(249,115,22,0.65)] active:translate-y-0"
+				disabled={isSubmitting}
+				class={`w-full rounded-2xl bg-linear-to-r from-orange-500 to-orange-600 py-4 text-lg font-bold text-white shadow-[0_8px_32px_-4px_rgba(249,115,22,0.55)] transition-all ${isSubmitting ? 'opacity-70 cursor-not-allowed' : 'hover:-translate-y-1 hover:shadow-[0_12px_36px_-4px_rgba(249,115,22,0.65)] active:translate-y-0'}`}
 			>
-				🔍 Search Business
+				{#if isSubmitting}
+					<span class="loader-sm w-4 h-4 mr-2"></span> Posting Requirement...
+				{:else}
+					🔍 Search Business
+				{/if}
 			</button>
 		</form>
 	</div>

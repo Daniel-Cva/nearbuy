@@ -13,7 +13,7 @@ export async function handle({ event, resolve }) {
         const origin = event.request.headers.get('origin');
 		return new Response(null, {
 			headers: {
-				'Access-Control-Allow-Origin': origin || 'https://192.168.0.166:5173',
+				'Access-Control-Allow-Origin': origin || 'http://localhost:5173',
 				'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
 				'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-sveltekit-action',
                 'Access-Control-Allow-Credentials': 'true',
@@ -28,9 +28,12 @@ export async function handle({ event, resolve }) {
 
     if (token) {
         try {
-            const payload = await verifyToken(token, event.platform.env.JWT_SECRET);
-            if (payload) {
-                event.locals.user = payload; // Inject verified identity into locals
+            const secret = event.platform?.env?.JWT_SECRET;
+            if (secret) {
+                const payload = await verifyToken(token, secret);
+                if (payload) {
+                    event.locals.user = payload; // Inject verified identity into locals
+                }
             }
         } catch (e) {
             console.error('[hooks] Token verification error:', e.message);
@@ -40,13 +43,23 @@ export async function handle({ event, resolve }) {
     // 🛡️ CENTRALIZED GUARD: Require authentication for specific API paths (Wildcard: /api/user/*)
     const { pathname } = event.url;
     
-    // Areas requiring valid authentication
-    const protectedPaths = ['/api/user/', '/api/businesses/', '/api/admin/', '/api/auth/user/'];
+    // Areas requiring valid authentication (/api/auth/* is fully public — login & register)
+    const protectedPaths = [
+        '/api/me', 
+        '/api/businesses/', 
+        '/api/admin/', 
+        '/api/requests', 
+        '/api/acceptances', 
+        '/api/conversations', 
+        '/api/messages', 
+        '/api/reports',
+        '/api/users/'
+    ];
     const isProtectedArea = protectedPaths.some(path => pathname.startsWith(path));
     
-    // EXCEPTION: Allow login, registration, and public categories list
-    const isPublicAuthRoute = pathname.endsWith('/login') || pathname.endsWith('/register');
-    const isPublicCategoryRoute = pathname === '/api/admin/categories' && event.request.method === 'GET';
+    // EXCEPTION: Allow login, registration, public auth routes, and public categories list
+    const isPublicAuthRoute = pathname.startsWith('/api/auth/');
+    const isPublicCategoryRoute = pathname.startsWith('/api/categories') && event.request.method === 'GET';
 
     // 🔒 AUTH CHECK: Check if the user is authenticated 
     const isAuthenticated = !!event.locals.user;
@@ -78,7 +91,7 @@ export async function handle({ event, resolve }) {
 	if (origin) {
         response.headers.set('Access-Control-Allow-Origin', origin);
     } else {
-        response.headers.set('Access-Control-Allow-Origin', 'https://192.168.0.166:5173');
+        response.headers.set('Access-Control-Allow-Origin', 'http://localhost:5173');
     }
     
 	response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');

@@ -7,10 +7,9 @@
 
 	const itemId = $page.params.id;
 
-	// ── State ────────────────────────────────────────────────────────────────
+	//  State 
 	let bizId     = $state('');
 	let item      = $state(null);
-	let reviews   = $state([]);
 	let loading   = $state(true);
 	let errorMsg  = $state('');
 	let deleting  = $state(false);
@@ -24,8 +23,9 @@
 
 	// Delete review state
 	let deletingReviewId = $state('');
+	let reviews = $state([]);
 
-	// ── Load ─────────────────────────────────────────────────────────────────
+	//  Load 
 	onMount(async () => {
 		try {
 			// 1. Get bizId from /api/me
@@ -40,10 +40,10 @@
 
 			// 2. Load item details + reviews in parallel
 			const [itemRes, reviewsRes] = await Promise.all([
-				fetch(`${API_BASE_URL}/api/businesses/${bizId}/items/${itemId}`, {
+				fetch(`${API_BASE_URL}/api/items/${itemId}`, {
 					credentials: 'include', headers: { 'Accept': 'application/json' }
 				}),
-				fetch(`${API_BASE_URL}/api/businesses/${bizId}/items/${itemId}/reviews`, {
+				fetch(`${API_BASE_URL}/api/reviews?item_id=${itemId}`, {
 					credentials: 'include', headers: { 'Accept': 'application/json' }
 				})
 			]);
@@ -55,7 +55,7 @@
 			if (reviewsRes.ok) {
 				const revData = await reviewsRes.json();
 				reviews = Array.isArray(revData.reviews ?? revData.data ?? revData)
-					? (revData.reviews ?? revData.data ?? revData) : [];
+					? (revData.reviews ?? revData.data ?? revData) : (Array.isArray(revData) ? revData : []);
 			}
 		} catch (err) {
 			errorMsg = err?.message ?? 'Failed to load item.';
@@ -64,23 +64,12 @@
 		}
 	});
 
-	// ── Carousel ─────────────────────────────────────────────────────────────
-	function handleScroll(e) {
-		if (!carouselEl) return;
-		currentImageIndex = Math.round(e.target.scrollLeft / e.target.clientWidth);
-	}
-	function scrollToImage(index) {
-		if (!carouselEl) return;
-		currentImageIndex = index;
-		carouselEl.scrollTo({ left: carouselEl.clientWidth * index, behavior: 'smooth' });
-	}
-
-	// ── Delete item ───────────────────────────────────────────────────────────
+	//  Carousel 	//  Delete item 
 	async function handleDelete() {
 		if (!confirm('Delete this item permanently?')) return;
 		deleting = true;
 		try {
-			const res = await fetch(`${API_BASE_URL}/api/businesses/${bizId}/items/${itemId}`, {
+			const res = await fetch(`${API_BASE_URL}/api/items/${itemId}`, {
 				method: 'DELETE', credentials: 'include'
 			});
 			if (!res.ok) throw new Error(`Delete failed (${res.status})`);
@@ -90,17 +79,18 @@
 			deleting = false;
 		}
 	}
-
-	// ── Delete review ─────────────────────────────────────────────────────────
 	async function deleteReview(reviewId) {
 		if (!confirm('Delete this review?')) return;
 		deletingReviewId = reviewId;
 		try {
 			const res = await fetch(
-				`${API_BASE_URL}/api/businesses/${bizId}/items/${itemId}/reviews/${reviewId}`,
+				`${API_BASE_URL}/api/reviews/${reviewId}`,
 				{ method: 'DELETE', credentials: 'include' }
 			);
-			if (!res.ok) throw new Error(`Failed (${res.status})`);
+			if (!res.ok) {
+				const errorData = await res.json();
+				throw new Error(errorData.message || `Failed (${res.status})`);
+			}
 			reviews = reviews.filter(r => r.id !== reviewId);
 		} catch (err) {
 			alert(err?.message ?? 'Failed to delete review.');
@@ -109,18 +99,68 @@
 		}
 	}
 
-	// ── Derived helpers ───────────────────────────────────────────────────────
-	const images = $derived(() => {
+	//  Derived helpers 
+	const images = $derived.by(() => {
 		if (!item) return [];
 		const raw = item.image ?? item.images ?? [];
-		const arr = Array.isArray(raw) ? raw : [raw];
-		return arr.filter(Boolean).map(p => toDisplayUrl(p));
+		
+		const unroll = (val) => {
+			if (!val) return [];
+			if (typeof val === 'string') {
+				const trimmed = val.trim();
+				// If it looks like JSON, try to parse it recursively
+				if (trimmed.startsWith('[') || (trimmed.startsWith('{') && !trimmed.includes(':'))) {
+					try {
+						let parsed;
+						try { parsed = JSON.parse(trimmed); } catch(e) { parsed = JSON.parse(trimmed.replace(/'/g, '"')); }
+						return unroll(parsed);
+					} catch(e) { return [trimmed]; }
+				}
+				// If it's a single path string
+				return trimmed ? [trimmed] : [];
+			}
+			if (Array.isArray(val)) {
+				return val.flatMap(v => unroll(v));
+			}
+			return [val];
+		};
+
+		const arr = unroll(raw);
+		const filteredArr = arr.filter(v => v && typeof v === 'string' && v.length > 5);
+		return filteredArr.map(p => toDisplayUrl(p));
 	});
 
-	const avgRating = $derived(() => {
-		if (!reviews.length) return 0;
-		return (reviews.reduce((s, r) => s + (r.rating ?? 0), 0) / reviews.length).toFixed(1);
+	const avgRatingValue = $derived.by(() => {
+		if (!reviews || !reviews.length) return "0.0";
+		const sum = reviews.reduce((s, r) => s + (Number(r.rating) || 0), 0);
+		return (sum / reviews.length).toFixed(1);
 	});
+
+	// Safely parse specifications
+	const itemSpecs = $derived.by(() => {
+		if (!item?.specification) return {};
+		if (typeof item.specification === 'object') return item.specification;
+		try {
+			return JSON.parse(item.specification);
+		} catch (e) {
+			console.error('Failed to parse specs:', e);
+			return {};
+		}
+	});
+
+	function handleScroll(e) {
+		const { scrollLeft, clientWidth } = e.currentTarget;
+		currentImageIndex = Math.round(scrollLeft / clientWidth);
+	}
+
+	function scrollToImage(index) {
+		if (!carouselEl) return;
+		carouselEl.scrollTo({
+			left: index * carouselEl.clientWidth,
+			behavior: 'smooth'
+		});
+		currentImageIndex = index;
+	}
 
 	function share() {
 		navigator.share?.({ title: item?.product_name, url: window.location.href }).catch(() => {});
@@ -128,7 +168,7 @@
 </script>
 
 <svelte:head>
-	<title>{item?.product_name ?? 'Item'} — NearBuy Inventory</title>
+	<title>{item?.product_name ?? 'Item'}  NearBuy Inventory</title>
 </svelte:head>
 
 <!-- Lightbox -->
@@ -149,7 +189,7 @@
 		<a href="/provider/inventory" class="flex items-center gap-1 text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
 			<Icon icon="mdi:arrow-left" width="16" height="16" /> Inventory
 		</a>
-		<h1 class="flex-1 font-bold text-gray-900 dark:text-white truncate">{item?.product_name ?? '…'}</h1>
+		<h1 class="flex-1 font-bold text-gray-900 dark:text-white truncate">{item?.product_name ?? ''}</h1>
 		{#if item}
 			<div class="flex items-center gap-2">
 				<button onclick={share} class="text-gray-500 hover:text-orange-500">
@@ -186,18 +226,18 @@
 
 		<!-- Image carousel -->
 		<div class="relative group flex h-72 w-full overflow-hidden items-center justify-center rounded-2xl border border-gray-200 bg-gray-100 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-			{#if images().length > 0}
+			{#if images.length > 0}
 				<div class="flex h-full w-full snap-x snap-mandatory overflow-x-auto hide-scrollbar"
 					bind:this={carouselEl} onscroll={handleScroll}>
-					{#each images() as img, i}
+					{#each images as img, i}
 						<div class="h-full min-w-full shrink-0 snap-center">
 							<img src={img} alt={`${item.product_name} image ${i+1}`} class="h-full w-full object-cover" loading="lazy" />
 						</div>
 					{/each}
 				</div>
-				{#if images().length > 1}
+				{#if images.length > 1}
 					<div class="absolute bottom-3 left-0 right-0 flex justify-center gap-1.5">
-						{#each images() as _, i}
+						{#each images as _, i}
 							<!-- svelte-ignore a11y_consider_explicit_label -->
 							<button onclick={() => scrollToImage(i)}
 								class={`h-1.5 rounded-full transition-all ${currentImageIndex === i ? 'w-4 bg-white' : 'w-1.5 bg-white/60'}`}></button>
@@ -210,7 +250,7 @@
 							<Icon icon="mdi:chevron-left" width="20" height="20" />
 						</button>
 					{/if}
-					{#if currentImageIndex < images().length - 1}
+					{#if currentImageIndex < images.length - 1}
 						<button onclick={() => scrollToImage(currentImageIndex + 1)}
 							aria-label="Next image"
 							class="absolute right-2 top-1/2 -translate-y-1/2 flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white backdrop-blur hover:bg-black/60">
@@ -232,27 +272,16 @@
 						<p class="mt-0.5 text-sm font-medium text-gray-500 dark:text-gray-400">{item.brand}</p>
 					{/if}
 				</div>
-				<div class="text-right">
-					<p class="text-2xl font-black text-orange-600 dark:text-orange-400">{item.selling_price != null ? `₹${item.selling_price}` : '—'}</p>
-					{#if item.mrp && item.mrp !== item.selling_price}
-						<p class="text-xs text-gray-400 line-through">₹{item.mrp}</p>
-					{/if}
 				</div>
-			</div>
 
 			<!-- Meta badges -->
 			<div class="mt-3 flex flex-wrap items-center gap-2 text-xs font-semibold">
 				{#if reviews.length}
 					<span class="flex items-center gap-1 text-yellow-500">
-						<Icon icon="mdi:star" width="14" height="14" /> {avgRating()} <span class="text-gray-400">({reviews.length})</span>
+						<Icon icon="mdi:star" width="14" height="14" /> {avgRatingValue} <span class="text-gray-400">({reviews.length})</span>
 					</span>
 				{/if}
-				{#if item.nos != null}
-					<span class={`flex items-center gap-1 ${item.nos < 10 ? 'text-red-500' : 'text-green-600 dark:text-green-400'}`}>
-						<Icon icon="mdi:package-variant-closed" width="14" height="14" />
-						{item.nos < 10 ? 'Low Stock' : 'In Stock'} ({item.nos})
-					</span>
-				{/if}
+
 				{#if item.sold_via_platform}
 					<span class="rounded-full bg-orange-100 dark:bg-orange-500/20 px-2 py-0.5 text-orange-600 dark:text-orange-400 font-bold">
 						Sold via NearBuy
@@ -283,12 +312,10 @@
 			</h3>
 			<div class="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
 				{#each [
-					['Item No.', `#${item.item_nos ?? item.id}`],
+					['Item ID', `#${item.id}`],
+					['Type', item.item_type],
+					['Category', item.category],
 					['Brand', item.brand],
-					['Selling Price', item.selling_price != null ? `₹${item.selling_price}` : null],
-					['MRP', item.mrp != null ? `₹${item.mrp}` : null],
-					['Stock (nos)', item.nos],
-					['Via Platform', item.sold_via_platform ? 'Yes' : 'No'],
 					['Status', item.status],
 					['Created', item.created_at ? new Date(item.created_at).toLocaleDateString('en-IN') : null],
 				] as [lbl, val]}
@@ -300,6 +327,20 @@
 					{/if}
 				{/each}
 			</div>
+			
+			{#if itemSpecs && Object.keys(itemSpecs).length > 0}
+				<div class="mt-5 border-t border-gray-100 dark:border-gray-800 pt-5">
+					<p class="text-[10px] font-black uppercase tracking-wider text-gray-400 mb-3">Specifications</p>
+					<div class="space-y-2">
+						{#each Object.entries(itemSpecs) as [k, v]}
+							<div class="flex items-center justify-between text-xs">
+								<span class="text-gray-500 font-medium">{k}</span>
+								<span class="text-gray-900 dark:text-white font-bold">{v}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/if}
 		</div>
 
 		<!-- Reviews -->
@@ -325,7 +366,7 @@
 									</div>
 									<div>
 										<p class="text-sm font-bold text-gray-900 dark:text-white">
-											User #{review.userid ?? review.user_id ?? '—'}
+											{review.firstname ? `${review.firstname} ${review.lastname || ''}` : `User #${review.userid ?? review.user_id ?? ''}`}
 										</p>
 										{#if review.created_at}
 											<p class="text-[10px] text-gray-400">{new Date(review.created_at).toLocaleDateString('en-IN')}</p>
@@ -364,7 +405,7 @@
 									{#each review.review_imageurl as imgPath}
 										<!-- svelte-ignore a11y_click_events_have_key_events -->
 										<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-										<img src={toDisplayUrl(imgPath)} alt="Review image"
+										<img src={toDisplayUrl(imgPath)} alt="Review"
 											class="h-16 w-16 rounded-xl object-cover border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-90 transition-opacity"
 											onclick={() => (lightboxSrc = toDisplayUrl(imgPath))} />
 									{/each}

@@ -5,14 +5,15 @@
 	import Icon from '@iconify/svelte';
 	import { setAuthFromResponse } from '$lib/stores/auth.svelte.js';
 	import { API_BASE_URL } from '$lib/helpers/config.js';
-	import { initializeAuthFromServer } from '$lib/helpers/authInit.js';
+	import { getCurrentProfile, isAuthenticated } from '$lib/stores/auth.svelte.js';
 
 	let { children } = $props();
 	let showMore = $state(false);
 	
 	let scrollY = $state(0);
 	let lastScrollY = $state(0);
-	let navVisible = $state(true); // default true for home
+	let navVisible = $state(true);
+	let loadingAuth = $state(true);
 
 	let isHome = $derived(page.url.pathname === '/user/home');
 	let isAuthPage = $derived(
@@ -28,46 +29,52 @@
 	let tempNavTimeout;
 
 	function handleTap() {
-		if (isHome) return; // Home handles itself via scroll
+		if (isHome) return;
 		tapCount++;
 		clearInterval(tapTimeout);
 		if (tapCount >= 3) {
 			navVisible = true;
 			clearTimeout(tempNavTimeout);
-			tempNavTimeout = setTimeout(() => {
-				navVisible = false;
-			}, 5000);
+			tempNavTimeout = setTimeout(() => { navVisible = false; }, 5000);
 			tapCount = 0;
 		} else {
-			tapTimeout = setTimeout(() => {
-				tapCount = 0;
-			}, 500);
+			tapTimeout = setTimeout(() => { tapCount = 0; }, 500);
 		}
 	}
 
-	let loadingAuth = $state(true);
-
 	onMount(async () => {
-		// Skip calling /api/me on the home page as requested by user feedback
+		// Only verify auth by calling /api/me on protected pages (NOT on auth pages & home)
+		if (isAuthPage) {
+			loadingAuth = false;
+			return;
+		}
 		if (isHome) {
 			loadingAuth = false;
 			return;
 		}
 
-		const result = await initializeAuthFromServer();
-		if (isAuthPage) {
-			if (result.success && result.role === 'user') {
-				goto('/user/home');
-			} else {
-				loadingAuth = false;
-			}
-		} else {
-			if (!result.success || result.role !== 'user') {
-				goto('/user/login');
-			} else {
-				loadingAuth = false;
-			}
+		// Check if the auth store already has a user (set from login/register response)
+		if (isAuthenticated()) {
+			loadingAuth = false;
+			return;
 		}
+
+		// Auth store is empty (page refresh / direct link) – verify cookie via /api/me
+		try {
+			const res = await fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' });
+			if (res.ok) {
+				const data = await res.json();
+				const p = data.profile ?? data;
+				if (p?.id) {
+					setAuthFromResponse({ profile: p, userid: p.id }, 'user');
+					loadingAuth = false;
+					return;
+				}
+			}
+		} catch (_) {}
+
+		// Cookie invalid / expired → redirect to login
+		goto('/user/login');
 	});
 
 	function handleLogout() {
@@ -78,32 +85,28 @@
 
 	$effect(() => {
 		if (isHome) {
-			if (scrollY > lastScrollY && scrollY > 50) {
-				navVisible = false;
-			} else if (scrollY < lastScrollY) {
-				navVisible = true;
-			}
+			if (scrollY > lastScrollY && scrollY > 50) navVisible = false;
+			else if (scrollY < lastScrollY) navVisible = true;
 			lastScrollY = scrollY;
 		} else {
 			navVisible = false;
 		}
 	});
 
+	// ── Required pages only ──────────────────────────────────────────────────
 	const mainNav = [
-		{ href: '/user/home', icon: 'mdi:home', label: 'Home' },
-		{ href: '/user/search', icon: 'mdi:magnify', label: 'Search' },
-		{ href: '/user/post-requirement', icon: 'mdi:clipboard-text', label: 'Post' },
-		{ href: '/user/quotes', icon: 'mdi:chat', label: 'Quotes' }
+		{ href: '/user/home',             icon: 'mdi:home',            label: 'Home' },
+		{ href: '/user/search',           icon: 'mdi:magnify',         label: 'Search' },
+		{ href: '/user/post-requirement', icon: 'mdi:clipboard-text',  label: 'Post' },
+		{ href: '/user/quotes',           icon: 'mdi:chat',            label: 'Quotes' }
 	];
 
 	const moreItems = [
-		{ href: '/user/offers', icon: 'mdi:gift', label: 'Offers' },
-		{ href: '/user/order-status', icon: 'mdi:package-variant-closed', label: 'My Orders' },
-		{ href: '/user/wishlist', icon: 'mdi:cards-heart', label: 'Wishlist' },
-		{ href: '/user/messages', icon: 'mdi:email', label: 'Messages' },
-		{ href: '/user/reports', icon: 'mdi:shield-check', label: 'My Reports' },
-		{ href: '/settings', icon: 'mdi:cog', label: 'Settings' },
-		{ href: '/user/profile', icon: 'mdi:account', label: 'Profile' },
+		{ href: '/user/profile',   icon: 'mdi:account',        label: 'My Profile' },
+		{ href: '/user/history',   icon: 'mdi:history',        label: 'History' },
+		{ href: '/user/reviews',   icon: 'mdi:star-outline',   label: 'My Reviews' },
+		{ href: '/user/reports',   icon: 'mdi:shield-check',   label: 'My Reports' },
+		{ href: '/settings',       icon: 'mdi:cog',            label: 'Settings' },
 		{ icon: 'mdi:logout', label: 'Sign Out', danger: true, action: handleLogout }
 	];
 

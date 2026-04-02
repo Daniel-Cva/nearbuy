@@ -1,9 +1,11 @@
 <script>
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { registerUser } from '$lib/helpers/authApi.js';
 	import { PUBLIC_API_BASE_URL } from '$env/static/public';
 	import { saveUserAuth } from '$lib/helpers/authStorage.js';
 	import { setAuthFromResponse } from '$lib/stores/auth.svelte.js';
+	import { uploadToUniversalApi } from '$lib/helpers/upload.js';
 
 	let step = $state(1); // 1 = Identity, 2 = Location, 3 = Categories
 	
@@ -21,9 +23,11 @@
 		
 		theme: 'system', // 'light' | 'dark' | 'system'
 		
-		interests: [],
-		avatar_url: ''
+		interests: []
 	});
+
+	// Avatar held in memory only — uploaded to R2 after registration succeeds
+	let avatarFile = $state(null);
 
 	let avatarPreview = $state(null);
 
@@ -41,12 +45,19 @@
 	let isSubmitting = $state(false);
 
 	// Category states
-	const allCategories = [
-		'Electronics', 'Grocery & Supermarket', 'Fashion & Clothing', 
-		'Home & Furniture', 'Health & Pharmacy', 'Food & Restaurants', 
-		'Salon & Beauty', 'Repair & Services', 'Education & Tutoring', 
-		'Sports & Fitness'
-	];
+	let allCategories = $state([]);
+	async function loadCategories() {
+		try {
+			const res = await fetch(`${PUBLIC_API_BASE_URL}/api/categories`);
+			if (res.ok) {
+				const raw = await res.json();
+				allCategories = (raw || []).map(c => c.name);
+			}
+		} catch (e) { console.error('Failed to load cats:', e); }
+	}
+	onMount(() => {
+		loadCategories();
+	});
 	let catSearchQuery = $state('');
 	let filteredCategories = $derived(
 		allCategories.filter(c => c.toLowerCase().includes(catSearchQuery.toLowerCase()))
@@ -73,13 +84,9 @@
 	function handleFileChange(e) {
 		const file = e.target.files[0];
 		if (!file) return;
-
-		const reader = new FileReader();
-		reader.onload = (event) => {
-			avatarPreview = event.target.result;
-			form.avatar_url = event.target.result; // Base64 string
-		};
-		reader.readAsDataURL(file);
+		avatarFile = file;
+		// Show a local preview without converting to Base64
+		avatarPreview = URL.createObjectURL(file);
 	}
 	
 	function updateTheme(t) {
@@ -175,40 +182,44 @@
 		isSubmitting = true;
 
 		try {
-			// Call registration API with form data
-			const response = await registerUser({
+			// Step 1 — Register (no avatar — upload after we get userId from /api/me)
+			const res = await registerUser({
 				firstname: form.firstname,
-				lastname: form.lastname,
-				email: form.email,
-				password: form.password,
-				mobile: form.mobile,
-				city: form.city,
-				pincode: form.pincode,
-				district: form.district,
-				state: form.state,
-				interests: form.interests,
-				avatar_url: form.avatar_url
+				lastname:  form.lastname,
+				email:     form.email,
+				password:  form.password,
+				mobile:    form.mobile,
+				city:      form.city,
+				pincode:   form.pincode,
+				district:  form.district,
+				state:     form.state,
+				interests: form.interests
 			});
 
-			// Verify response
-			if (!response?.token) {
-				throw new Error('Registration succeeded but no token was returned');
+			// Server returns { message } only — check HTTP status via the helper's throw
+			// Step 2 — Cookie is now set. Upload avatar if user picked one.
+			if (avatarFile) {
+				try {
+					// Get userId from /api/me (cookie is already active)
+					const meRes = await fetch(`${PUBLIC_API_BASE_URL}/api/me`, { credentials: 'include' });
+					if (meRes.ok) {
+						const meData = await meRes.json();
+						const userId = meData.profile?.id ?? meData.id;
+						if (userId) {
+							await uploadToUniversalApi({ type: 'user-profile', userId, file: avatarFile });
+						}
+					}
+				} catch (_) {
+					// Avatar upload failure is non-fatal — user can set it later
+				}
 			}
 
-			// Update global auth state using normalized response
-			// Note: registerUser helper works like loginUser in returning consolidated payload
-			setAuthFromResponse(response, 'user');
-
-			// Route to home on success
+			// Step 3 — Navigate to home (cookie handles session)
 			goto('/user/home');
 		} catch (err) {
 			console.error('Registration error:', err);
-			
 			if (err?.name === 'TypeError' && err?.message === 'Failed to fetch') {
-				errorMsg = `Cannot connect to API at ${PUBLIC_API_BASE_URL}. Please ensure the backend is running and CORS is enabled.`;
-			} else if (err?.status === 400) {
-				// Validation errors from API
-				errorMsg = err?.message || 'Invalid registration data. Please check your inputs.';
+				errorMsg = `Cannot connect to API at ${PUBLIC_API_BASE_URL}. Please ensure the backend is running.`;
 			} else {
 				errorMsg = err?.message || 'Registration failed. Please try again.';
 			}

@@ -1,66 +1,22 @@
 import { json } from '@sveltejs/kit';
+import { ulid } from 'ulid';
 
-/**
- * Path: /api/reports
- * Super Admin Management: View all reports dynamically with optional filters
- */
-export async function GET({ platform, locals, url }) {
+export async function POST({ request, platform, locals }) {
     try {
-        const payload = locals.user;
-        if (!payload || payload.role !== 'admin') {
-            return json({ message: 'Unauthorized. Super Admin access only.' }, { status: 401 });
-        }
-
+        if (!locals.user) return json({message: 'Unauthorized'}, {status: 401});
+        const body = await request.json();
         const db = platform.env.DB;
 
-        // Extract pagination and filters safely
-        const page = parseInt(url.searchParams.get('page')) || 1;
-        const limit = parseInt(url.searchParams.get('limit')) || 20;
-        const offset = (page - 1) * limit;
+        // Reporter is either the user id, or the biz id.
+        const reportedBy = locals.user.bizId || locals.user.id;
+        if (!reportedBy) return json({message: 'Unknown reporter'}, {status: 400});
 
-        const status = url.searchParams.get('status'); // 'open', 'resolved', 'closed'
-        const type = url.searchParams.get('type');     // 'business', 'user'
+        const id = 'rpt_' + ulid();
+        await db.prepare('INSERT INTO reports (id, type, targetId, reportedBy, reason, details) VALUES (?, ?, ?, ?, ?, ?)')
+          .bind(id, body.type, body.targetId, reportedBy, body.reason, body.details || null).run();
 
-        const whereClauses = [];
-        const bindValues = [];
-
-        if (status) {
-            whereClauses.push('status = ?');
-            bindValues.push(status);
-        }
-
-        if (type) {
-            whereClauses.push('type = ?');
-            bindValues.push(type);
-        }
-
-        const whereString = whereClauses.length > 0 ? 'WHERE ' + whereClauses.join(' AND ') : '';
-
-        // Run queries in parallel
-        const [totalRes, reports] = await db.batch([
-            db.prepare(`SELECT COUNT(*) as total FROM reports ${whereString}`).bind(...bindValues),
-            db.prepare(`
-                SELECT * FROM reports 
-                ${whereString} 
-                ORDER BY createdAt DESC 
-                LIMIT ? OFFSET ?
-            `).bind(...bindValues, limit, offset)
-        ]);
-
-        const totalReports = totalRes.results[0]?.total || 0;
-
-        return json({
-            message: 'Reports fetched successfully',
-            reports: reports.results,
-            pagination: {
-                total: totalReports,
-                page,
-                limit,
-                totalPages: Math.ceil(totalReports / limit)
-            }
-        });
-
-    } catch (e) {
-        return json({ message: 'Internal server error', error: e.message }, { status: 500 });
+        return json({ message: 'Report submitted successfully', id }, { status: 201 });
+    } catch(err) {
+        return json({ error: err.message }, { status: 500 });
     }
 }

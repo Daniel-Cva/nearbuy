@@ -1,157 +1,167 @@
 <script>
-	import { page } from '$app/stores';
-	const reqId = $page.params.id;
+	import { onMount } from 'svelte';
+	import { page } from '$app/state';
+	import { goto } from '$app/navigation';
+	import { API_BASE_URL } from '$lib/helpers/config.js';
+	import { toDisplayUrl } from '$lib/helpers/upload.js';
+	import Icon from '@iconify/svelte';
 
-	const quotes = [
-		{
-			id: 1,
-			requirement: 'Looking for iPhone 15 Pro Max',
-			provider: 'Krishna Electronics',
-			providerName: 'Ravi Kumar',
-			price: 89999,
-			note: 'Sealed box with 1 year warranty. Free screen protector. Can deliver within 2 hours.',
-			availability: 'In stock, available now',
-			rating: 4.8,
-			jobs: 128,
-			time: '30 min ago',
-			status: 'pending'
-		},
-		{
-			id: 2,
-			requirement: 'Looking for iPhone 15 Pro Max',
-			provider: 'Raj Mobiles',
-			providerName: 'Raj Arjun',
-			price: 87500,
-			note: 'Genuine Apple product. Limited stock. Can negotiate slightly.',
-			availability: '2 units in stock',
-			rating: 4.7,
-			jobs: 84,
-			time: '1h ago',
-			status: 'pending'
+	let requestId = $derived(page.params.id);
+	let requestDetail = $state(null);
+	let quotes = $state([]);
+	let loading = $state(true);
+	let accepting = $state(false);
+	let errorMsg = $state('');
+
+	onMount(async () => {
+		try {
+			// Fetch request detail
+			const detailRes = await fetch(`${API_BASE_URL}/api/me/request/${requestId}`, { credentials: 'include' });
+			if (!detailRes.ok) throw new Error('Requirement not found');
+			const detailData = await detailRes.json();
+			requestDetail = detailData.request;
+
+			// Fetch quotes
+			const quotesRes = await fetch(`${API_BASE_URL}/api/me/request/${requestId}/quotes`, { credentials: 'include' });
+			if (!quotesRes.ok) throw new Error('Failed to load quotes');
+			const quotesData = await quotesRes.json();
+			quotes = quotesData.quotes || [];
+		} catch (err) {
+			errorMsg = err.message;
+		} finally {
+			loading = false;
 		}
-	];
+	});
 
-	let accepted = $state(null);
-
-	function acceptQuote(id) {
-		accepted = id;
+	async function handleAccept(businessId, quote) {
+		if (accepting) return;
+		accepting = true;
+		try {
+			const res = await fetch(`${API_BASE_URL}/api/me/request/${requestId}/quotes`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({
+					businessId,
+					acceptedItemInfo: quote.product_info
+				})
+			});
+			if (!res.ok) throw new Error('Failed to accept quote');
+			goto('/user/history'); // Go to orders/history after success
+		} catch (err) {
+			alert(err.message);
+		} finally {
+			accepting = false;
+		}
 	}
 </script>
 
 <svelte:head>
-	<title>Quotes for REQ-{reqId} — NearBuy</title>
+	<title>Requirement Details & Quotes — NearBuy</title>
 </svelte:head>
 
-<div class="min-h-screen bg-gray-50 text-gray-900 transition-colors duration-300 dark:bg-gray-950 dark:text-white pb-28">
-	<header class="flex items-center gap-3 border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 sticky top-0 z-10">
-		<a href="/user/quotes" class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">← Back</a>
-		<h1 class="font-bold">Quotes & Interest</h1>
+<div class="min-h-screen bg-gray-50 text-gray-900 dark:bg-gray-950 dark:text-white pb-28">
+	<header class="flex items-center gap-3 border-b border-gray-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-gray-800 dark:bg-gray-950/95 sticky top-0 z-10 transition-colors">
+		<button onclick={() => history.back()} class="text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white">
+			<Icon icon="mdi:arrow-left" width="20" height="20" />
+		</button>
+		<h1 class="font-bold flex-1">Requirement & Quotes</h1>
 	</header>
 
-	<div class="mx-auto max-w-xl px-4 py-6">
-		<p class="mb-5 text-sm text-gray-500 dark:text-gray-400">
-			Requirement ID: <span class="font-bold text-gray-900 dark:text-white">REQ-{reqId}</span>
-		</p>
-
-		{#if accepted === null}
-			<div class="space-y-4">
-				{#each quotes as quote}
-					<div class="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-colors hover:border-orange-200 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-orange-500/50">
-						<!-- Provider Header -->
-						<div class="flex items-center gap-4 border-b border-gray-100 p-4 dark:border-gray-800">
-							<div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-orange-400 to-orange-600 font-bold text-white shadow-sm">
-								{quote.providerName[0]}
-							</div>
-							<div class="flex-1">
-								<h3 class="font-bold">{quote.provider}</h3>
-								<p class="text-sm font-medium text-gray-500 dark:text-gray-400">{quote.providerName}</p>
-							</div>
-							<div class="text-right">
-								<p class="text-sm font-bold text-yellow-500">⭐ {quote.rating}</p>
-								<p class="text-xs font-semibold text-gray-400">{quote.jobs} jobs</p>
-							</div>
-						</div>
-
-						<!-- Quote Details -->
-						<div class="p-5">
-							<div class="mb-3 flex items-start justify-between">
-								<div>
-									<p class="text-3xl font-black text-orange-600 dark:text-orange-400">₹{quote.price.toLocaleString()}</p>
-									<p class="mt-0.5 text-xs font-bold text-gray-500 dark:text-gray-400 flex items-center gap-1">
-										<span class="w-2 h-2 rounded-full bg-green-500"></span>
-										{quote.availability}
-									</p>
-								</div>
-								<span class="text-xs font-medium text-gray-400 bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded-full">{quote.time}</span>
-							</div>
-							<p class="mb-5 text-sm font-medium text-gray-600 dark:text-gray-300 leading-relaxed bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-700/50">{quote.note}</p>
-							
-							<button
-								id={`accept-quote-${quote.id}`}
-								onclick={() => acceptQuote(quote.id)}
-								class="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-orange-500 to-orange-600 py-3.5 font-bold text-white shadow-[0_8px_32px_-4px_rgba(249,115,22,0.4)] transition-all hover:bg-orange-400 hover:-translate-y-0.5 active:translate-y-0"
-							>✅ Accept This Quote</button>
-						</div>
-					</div>
-				{/each}
+	<div class="mx-auto max-w-xl px-4 py-6 space-y-6">
+		{#if loading}
+			<div class="h-40 w-full animate-pulse rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800"></div>
+			<div class="space-y-4 pt-4">
+				<div class="h-20 w-full animate-pulse rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 opacity-60"></div>
+				<div class="h-20 w-full animate-pulse rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 opacity-40"></div>
 			</div>
+		{:else if errorMsg}
+			<div class="rounded-xl bg-red-500/10 p-5 text-sm font-bold text-red-500">{errorMsg}</div>
 		{:else}
-			{@const acceptedQuote = quotes.find(q => q.id === accepted)}
-			<div class="py-10 text-center bg-green-50 dark:bg-green-900/10 rounded-3xl border border-green-100 dark:border-green-800 p-6 shadow-sm">
-				<div class="mx-auto mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-green-100 text-5xl dark:bg-green-500/20 shadow-inner">🎉</div>
-				<h2 class="mb-2 text-2xl font-black text-green-600 dark:text-green-500">Quote Accepted!</h2>
-				<p class="mb-6 font-medium text-gray-600 dark:text-gray-400 leading-relaxed max-w-sm mx-auto">
-					Contact info has been immediately shared. Coordinate with the provider to complete your order.
-				</p>
-
-				<!-- Provider Contact Card -->
-				<div class="mb-6 text-left bg-white dark:bg-gray-900 rounded-2xl p-5 border border-gray-200 dark:border-gray-800 shadow-sm">
-					<div class="flex items-center gap-4 mb-4 pb-4 border-b border-gray-100 dark:border-gray-800">
-						<div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-800 text-xl">👤</div>
-						<div>
-							<div class="flex items-center gap-2">
-								<h3 class="font-bold text-gray-900 dark:text-white">{acceptedQuote?.providerName}</h3>
-								<span class="text-[10px] font-bold uppercase tracking-wider text-gray-400 bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded-md">Quoted Employee</span>
-							</div>
-							<div class="flex items-center gap-2 mt-0.5">
-								<p class="text-sm font-medium text-orange-600 dark:text-orange-400">{acceptedQuote?.provider}</p>
-								<span class="text-[10px] font-bold uppercase tracking-wider text-orange-400 bg-orange-50 dark:bg-orange-900/20 px-1.5 py-0.5 rounded-md">Business</span>
-							</div>
-						</div>
-					</div>
-					
-					<div class="space-y-3 mb-5">
-						<div class="flex items-center justify-between pl-1 pr-2">
-							<div class="flex items-center gap-3">
-								<span class="w-8 h-8 flex items-center justify-center rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-500">📞</span>
-								<p class="font-bold text-gray-700 dark:text-gray-300">+91 98765 43210</p>
-							</div>
-							<span class="text-[10px] font-semibold text-gray-400 max-[350px]:hidden">Business</span>
-						</div>
-						<div class="flex items-center justify-between pl-1 pr-2">
-							<div class="flex items-center gap-3">
-								<span class="w-8 h-8 flex items-center justify-center rounded-full bg-orange-50 dark:bg-orange-500/10 text-orange-500">✉️</span>
-								<p class="font-bold text-gray-700 dark:text-gray-300 truncate max-w-[180px]">contact@{acceptedQuote?.provider.toLowerCase().replace(/\s+/g, '')}.com</p>
-							</div>
-							<span class="text-[10px] font-semibold text-gray-400 max-[350px]:hidden">Business</span>
-						</div>
-					</div>
-
-					<a href={`/user/business/${acceptedQuote?.id}`} class="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl border-2 border-orange-500 text-orange-500 font-bold hover:bg-orange-50 dark:hover:bg-orange-500/10 transition-colors">
-						🏬 View Business Profile
-					</a>
+			<!-- Request Info -->
+			<div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900 relative">
+                <div class="absolute top-0 right-0 p-4">
+                    <span class={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${requestDetail.status === 'open' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30' : 'bg-green-100 text-green-600 dark:bg-green-900/30'}`}>
+                        {requestDetail.status}
+                    </span>
+                </div>
+				<h2 class="text-xl font-black mb-2 pr-12">{requestDetail.description?.title}</h2>
+				<p class="text-gray-600 dark:text-gray-400 text-sm mb-4">{requestDetail.description?.details}</p>
+				
+				<div class="flex flex-wrap gap-2 text-xs">
+					<span class="rounded-lg bg-gray-100 px-3 py-1.5 font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+						Budget: {requestDetail.description?.budget ? `₹${requestDetail.description?.budget}` : 'Any'}
+					</span>
+					<span class="rounded-lg bg-gray-100 px-3 py-1.5 font-bold text-gray-700 dark:bg-gray-800 dark:text-gray-300">
+						Location: {requestDetail.city || 'Anywhere'}
+					</span>
 				</div>
+			</div>
 
-				<div class="flex gap-3">
-					<a
-						href={`/user/messages/${accepted}`}
-						class="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 font-bold text-white shadow-sm transition-all hover:bg-orange-400 hover:-translate-y-0.5"
-					>💬 Message</a>
-					<a
-						href="/user/order-status"
-						class="flex-1 flex items-center justify-center gap-2 rounded-2xl border-2 border-gray-200 py-3.5 font-bold text-gray-600 transition-all hover:bg-gray-50 hover:border-gray-300 dark:border-gray-700 dark:text-gray-400 dark:hover:bg-gray-800 dark:hover:border-gray-600"
-					>📦 Order Status</a>
-				</div>
+			<!-- Quotes List -->
+			<div class="space-y-4">
+				<h3 class="flex items-center gap-2 font-black text-gray-400 uppercase tracking-widest text-xs px-2">
+					<Icon icon="mdi:chat-outline" width="16" height="16" />
+					Responses ({quotes.length})
+				</h3>
+
+				{#if quotes.length === 0}
+					<div class="bg-gray-100 dark:bg-gray-900/50 rounded-2xl p-10 text-center border-2 border-dashed border-gray-200 dark:border-gray-800">
+						<Icon icon="mdi:hourglass-empty" width="32" height="32" class="mx-auto text-gray-400 mb-2" />
+						<p class="text-gray-500 font-bold text-sm uppercase tracking-wide">Waiting for quotes...</p>
+					</div>
+				{:else}
+					{#each quotes as quote}
+						<div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 space-y-4 group transition-all hover:border-orange-500/50">
+							<div class="flex items-center gap-4 border-b border-gray-50 dark:border-gray-800 pb-3">
+								<div class="h-12 w-12 rounded-full border border-gray-200 dark:border-gray-700 overflow-hidden bg-gray-50 dark:bg-gray-800">
+									{#if quote.business_avatar}
+										<img src={toDisplayUrl(quote.business_avatar)} alt={quote.business_name} class="h-full w-full object-cover" />
+									{:else}
+                                        <div class="h-full w-full flex items-center justify-center text-lg font-black bg-orange-500 text-white">
+                                            {quote.business_name[0]}
+                                        </div>
+									{/if}
+								</div>
+								<div class="flex-1">
+									<h4 class="font-extrabold text-gray-900 dark:text-white text-md">{quote.business_name}</h4>
+									<div class="text-[10px] uppercase font-black text-gray-400 tracking-tighter">Business Partner</div>
+								</div>
+								<div class="text-right">
+									<p class="text-xl font-black text-orange-600 dark:text-orange-400 tracking-tighter">₹{quote.product_info?.price}</p>
+									<p class="text-[10px] font-black text-gray-400 uppercase">Per Item / Job</p>
+								</div>
+							</div>
+
+							<div class="space-y-2 py-1">
+                                {#if quote.product_info?.notes}
+								    <p class="text-sm font-bold text-gray-700 dark:text-gray-300">"{quote.product_info.notes}"</p>
+                                {/if}
+								<div class="flex items-center gap-3 text-xs text-gray-500">
+									<span class="flex items-center gap-1 font-bold">
+										<Icon icon="mdi:clock-outline" width="14" height="14" class="text-gray-400" />
+										Delivery: {quote.product_info?.delivery_time || 'Immediate'}
+									</span>
+								</div>
+							</div>
+
+							{#if requestDetail.status === 'open'}
+								<button
+									onclick={() => handleAccept(quote.business_id, quote)}
+                                    disabled={accepting}
+									class="w-full flex items-center justify-center gap-2 rounded-xl bg-orange-500 py-3 text-sm font-black text-white shadow-lg shadow-orange-500/20 active:scale-[0.98] transition-transform disabled:opacity-50"
+								>
+                                    {#if accepting}<Icon icon="mdi:loading" width="18" height="18" class="animate-spin" />{:else}<Icon icon="mdi:check-decagram" width="18" height="18" />{/if}
+									Accept Quote
+								</button>
+							{:else}
+								<div class="w-full text-center py-2 text-xs font-black uppercase text-gray-400 tracking-widest">
+									Requirement Closed
+								</div>
+							{/if}
+						</div>
+					{/each}
+				{/if}
 			</div>
 		{/if}
 	</div>

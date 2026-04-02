@@ -32,22 +32,20 @@
 	let pincodeError      = $state('');
 
 	// ── Load via /api/me (centralized) ───────────────────────────────────────
+	// ── Profile page is the designated /api/me call point ───────────────────
+	// This is the ONLY place we call /api/me proactively (as per design).
+	// The layout does NOT call /api/me — it only guards routes via cookie.
 	onMount(async () => {
 		try {
-			// use the central helper to load profile and sync the auth store
-			const result = await initializeAuthFromServer();
-			
-			if (result.success && result.role === 'user') {
-				// We call it once to initialize the store, then fetch raw for the UI state
-				const res = await fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' });
-				const data = await res.json();
-				profile = data.profile ?? data;
-				syncForm();
-			} else {
-				throw new Error(result.error || 'Failed to authenticate');
-			}
-		} catch (err) {
-			errorMsg = err?.message ?? 'Unable to load your profile.';
+			const res = await fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' });
+			if (!res.ok) throw new Error('Session expired. Please log in again.');
+			const data = await res.json();
+			profile = data.profile ?? data;
+			// Also refresh the in-memory auth store with fresh data
+			setAuthFromResponse({ profile, userid: profile.id }, 'user');
+			syncForm();
+		} catch (e) {
+			errorMsg = e?.message ?? 'Unable to load your profile.';
 		} finally {
 			loading = false;
 		}
@@ -207,10 +205,10 @@
 
 		<!-- Avatar / Name card -->
 		<div class="flex flex-col items-center justify-center p-6 bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm relative overflow-hidden">
-			<div class="absolute top-0 left-0 right-0 h-24 bg-gradient-to-br from-orange-400/20 to-orange-600/20 dark:from-orange-500/10 dark:to-orange-600/10"></div>
+			<div class="absolute top-0 left-0 right-0 h-24 bg-linear-to-br from-orange-400/20 to-orange-600/20 dark:from-orange-500/10 dark:to-orange-600/10"></div>
 
 			<div class="relative w-24 h-24 mb-4 z-10">
-				<div class="w-full h-full rounded-full bg-gradient-to-br from-orange-400 to-orange-600 flex items-center justify-center text-4xl font-black text-white shadow-lg shadow-orange-500/30 border-4 border-white dark:border-gray-900 overflow-hidden">
+				<div class="w-full h-full rounded-full bg-linear-to-br from-orange-400 to-orange-600 flex items-center justify-center text-4xl font-black text-white shadow-lg shadow-orange-500/30 border-4 border-white dark:border-gray-900 overflow-hidden">
 					{#if displayAvatar}
 						<img src={displayAvatar} alt="Profile" class="h-full w-full object-cover" />
 					{:else}
@@ -359,7 +357,7 @@
 		</div>
 
 		<!-- Privacy note -->
-		<div class="p-5 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border border-blue-100 dark:border-blue-800/50 rounded-2xl flex gap-4 text-blue-900 dark:text-blue-300 shadow-sm">
+		<div class="p-5 bg-linear-to-br from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 border border-blue-100 dark:border-blue-800/50 rounded-2xl flex gap-4 text-blue-900 dark:text-blue-300 shadow-sm">
 			<div class="w-10 h-10 rounded-full bg-white dark:bg-gray-900 flex items-center justify-center shrink-0 shadow-sm">
 				<Icon icon="mdi:lock-outline" width="20" height="20" class="text-blue-500" />
 			</div>

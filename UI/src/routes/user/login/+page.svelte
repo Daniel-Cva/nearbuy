@@ -1,56 +1,39 @@
 <script>
 	import { goto } from '$app/navigation';
 	import { PUBLIC_API_BASE_URL } from '$env/static/public';
-	import { setAuthFromResponse } from '$lib/stores/auth.svelte.js';
 
-	let loginType = $state('email'); // 'email' | 'mobile'
+	let loginType  = $state('email');
 	let identifier = $state('');
-	let password = $state('');
+	let password   = $state('');
 	let showPassword = $state(false);
-	let loading = $state(false);
-	let errorMsg = $state('');
+	let loading    = $state(false);
+	let errorMsg   = $state('');
 
 	async function handleLogin(e) {
 		e.preventDefault();
-		loading = true;
+		loading  = true;
 		errorMsg = '';
-		console.log('[Login Flow started] -> Type:', loginType, 'Identifier:', identifier);
 
 		try {
-			console.log('[Login API Call] fetching POST /api/auth/user/login');
 			const res = await fetch(`${PUBLIC_API_BASE_URL}/api/auth/user/login`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json'
-				},
+				method:      'POST',
+				headers:     { 'Content-Type': 'application/json' },
 				credentials: 'include',
-				body: JSON.stringify({
-					[loginType]: identifier,
-					password
-				})
+				body: JSON.stringify({ [loginType]: identifier, password })
 			});
 
 			const data = await res.json();
-			console.log('[Login API Response]', { ok: res.ok, status: res.status, data });
 
-			if (res.ok && data.login_status === 'success') {
-				console.log('[Login Success] Updating global auth store');
-				setAuthFromResponse(data, 'user');
-				
-				console.log('[Login Navigation] attempting to goto("/user/home")');
-				goto('/user/home')
-					.then(() => console.log('[Login Navigation] goto("/user/home") promise resolved successfully!'))
-					.catch(gotoErr => console.error('[Login Navigation Error]', gotoErr));
+			if (res.ok) {
+				// Cookie is set — auth store will be populated via /api/me when needed
+				goto('/user/home');
 			} else {
-				console.log('[Login Failed] Server rejection or status!==success');
-				throw new Error(data.message || 'Login failed');
+				errorMsg = data.message || 'Login failed';
 			}
 		} catch (err) {
-			console.error('[Login ExceptionCaught]', err);
 			errorMsg = err.message || 'An error occurred during login';
 		} finally {
 			loading = false;
-			console.log('[Login Flow processing completed]');
 		}
 	}
 </script>

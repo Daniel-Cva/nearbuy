@@ -12,17 +12,19 @@
 
 	// Form fields
 	let productName   = $state('');
+	let itemType      = $state('product'); // 'product' or 'service'
+	let category      = $state('');
 	let brand         = $state('');
-	let sellingPrice  = $state('');
-	let mrp           = $state('');
-	let nos           = $state('');
 	let description   = $state('');
-	let soldViaPlatform = $state(false);
+	let specRows      = $state([{key: '', value: ''}]);
 
 	// Image upload — up to 5 images
 	let imageFiles    = $state([]);    // File objects
 	let imagePreviews = $state([]);    // blob URLs for display
 	let uploading     = $state(false);
+
+	// ── Load bizId ────────────────────────────────────────────────────────────
+	let availableCategories = $state([]);
 
 	// ── Load bizId ────────────────────────────────────────────────────────────
 	onMount(async () => {
@@ -35,6 +37,10 @@
 			const data = await res.json();
 			bizId = data.profile?.biz_id ?? data.business?.id ?? data.biz_id ?? '';
 			if (!bizId) throw new Error('No business ID. Register a business first.');
+
+			// Load categories
+			const cRes = await fetch(`${API_BASE_URL}/api/categories`);
+			if (cRes.ok) availableCategories = await cRes.json();
 		} catch (err) {
 			errorMsg = err?.message ?? 'Failed to load session.';
 		}
@@ -55,39 +61,62 @@
 		imagePreviews = imagePreviews.filter((_, i) => i !== index);
 	}
 
+	function addSpecRow() {
+		specRows = [...specRows, {key: '', value: ''}];
+	}
+
+	function removeSpecRow(index) {
+		specRows = specRows.filter((_, i) => i !== index);
+	}
+
+
+
 	// ── Submit ────────────────────────────────────────────────────────────────
 	async function handleSubmit(e) {
 		e.preventDefault();
 		if (!productName.trim()) { errorMsg = 'Product name is required.'; return; }
-		if (!sellingPrice) { errorMsg = 'Selling price is required.'; return; }
+		if (!category.trim()) { errorMsg = 'Main category is required.'; return; }
 		if (!bizId) { errorMsg = 'Business ID not found.'; return; }
 
 		errorMsg = ''; successMsg = ''; saving = true;
 
 		try {
+			// Generate a unique ID for the item BEFORE uploading so images route to correct folder
+			const newItemId = 'itm_' + Date.now().toString(36) + Math.random().toString(36).substring(2, 8);
+
 			// Step 1 — upload all images to R2
 			uploading = true;
 			const uploadedPaths = await Promise.all(
-				imageFiles.map(file =>
-					uploadToUniversalApi({ type: 'business-item', bizId, file })
-						.then(r => r.path)
+				imageFiles.map((file, idx) =>
+					uploadToUniversalApi({ 
+						type: 'business-item', 
+						bizId, 
+						itemId: newItemId, 
+						imageName: idx === 0 ? 'main' : `img_${idx}`, 
+						file 
+					}).then(r => r.path)
 				)
 			);
 			uploading = false;
 
+			let specs = {};
+			for (const r of specRows) {
+				if (r.key.trim() && r.value.trim()) specs[r.key.trim()] = r.value.trim();
+			}
+
 			// Step 2 — POST item to database
 			const payload = {
+				id:               newItemId,
 				product_name:     productName.trim(),
+				item_type:        itemType,
+				category:         category.trim(),
 				brand:            brand.trim()       || undefined,
-				selling_price:    Number(sellingPrice),
-				mrp:              mrp ? Number(mrp) : undefined,
-				nos:              nos ? Number(nos) : undefined,
 				description:      description.trim() || undefined,
-				sold_via_platform: soldViaPlatform ? 1 : 0,
-				image:            uploadedPaths.length ? uploadedPaths : undefined
+				specification:    Object.keys(specs).length ? JSON.stringify(specs) : undefined,
+				image:            uploadedPaths.length ? JSON.stringify(uploadedPaths) : undefined
 			};
 
-			const res = await fetch(`${API_BASE_URL}/api/businesses/${bizId}/items`, {
+			const res = await fetch(`${API_BASE_URL}/api/items`, {
 				method:      'POST',
 				credentials: 'include',
 				headers:     { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -101,8 +130,9 @@
 
 			successMsg = 'Item added successfully!';
 			// Reset form
-			productName = ''; brand = ''; sellingPrice = ''; mrp = '';
-			nos = ''; description = ''; soldViaPlatform = false;
+			productName = ''; brand = ''; description = ''; itemType = 'product';
+			category = '';
+			specRows = [{key: '', value: ''}];
 			imageFiles = []; imagePreviews = [];
 			setTimeout(() => window.location.href = '/provider/inventory', 1500);
 		} catch (err) {
@@ -178,18 +208,41 @@
 				<Icon icon="mdi:package-variant" width="16" height="16" class="text-orange-500" /> Core Details
 			</h3>
 
-			<div>
-				<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="product-name">
-					Product Name <span class="text-red-500">*</span>
-				</label>
-				<input id="product-name" type="text" bind:value={productName} required placeholder="e.g. Cotton T-Shirt"
-					class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-all" />
+			<div class="grid grid-cols-2 gap-3">
+				<div>
+					<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="product-name">
+						Product Name <span class="text-red-500">*</span>
+					</label>
+					<input id="product-name" type="text" bind:value={productName} required placeholder="e.g. Cotton T-Shirt"
+						class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-all" />
+				</div>
+				<div>
+					<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="item-type">Item Type</label>
+					<select id="item-type" bind:value={itemType} class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm font-medium text-gray-900 dark:text-white focus:border-orange-500 focus:outline-none transition-all">
+						<option value="product">Product</option>
+						<option value="service">Service</option>
+					</select>
+				</div>
 			</div>
 
-			<div>
-				<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="item-brand">Brand</label>
-				<input id="item-brand" type="text" bind:value={brand} placeholder="e.g. NearBuy"
-					class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-all" />
+			<div class="grid grid-cols-2 gap-3">
+				<div>
+					<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="category">
+						Category <span class="text-red-500">*</span>
+					</label>
+					<select id="category" bind:value={category} required
+						class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm font-medium text-gray-900 dark:text-white focus:border-orange-500 focus:outline-none transition-all">
+						<option value="">Select Category</option>
+						{#each availableCategories as cat}
+							<option value={cat.name}>{cat.name}</option>
+						{/each}
+					</select>
+				</div>
+				<div>
+					<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="item-brand">Brand</label>
+					<input id="item-brand" type="text" bind:value={brand} placeholder="e.g. NearBuy"
+						class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-all" />
+				</div>
 			</div>
 
 			<div>
@@ -199,47 +252,24 @@
 			</div>
 		</div>
 
-		<!-- Pricing + Stock -->
+		<!-- Specifications -->
 		<div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 p-5 shadow-sm space-y-4">
 			<h3 class="flex items-center gap-2 font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-2">
-				<Icon icon="mdi:currency-inr" width="16" height="16" class="text-orange-500" /> Pricing & Stock
+				<Icon icon="mdi:list-status" width="16" height="16" class="text-orange-500" /> Specifications
 			</h3>
-			<div class="grid grid-cols-2 gap-3">
-				<div>
-					<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="selling-price">
-						Selling Price <span class="text-red-500">*</span>
-					</label>
-					<div class="relative">
-						<span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">₹</span>
-						<input id="selling-price" type="number" min="0" step="0.01" bind:value={sellingPrice} required placeholder="499"
-							class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 pl-7 pr-4 py-3 text-sm font-medium text-gray-900 dark:text-white focus:border-orange-500 focus:outline-none transition-all" />
+			
+			<div class="space-y-3">
+				{#each specRows as row, i}
+					<div class="flex items-center gap-2">
+						<input type="text" bind:value={row.key} placeholder="Key (e.g. Color)" class="flex-1 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none transition-all dark:text-white" />
+						<input type="text" bind:value={row.value} placeholder="Value (e.g. Red)" class="flex-1 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2.5 text-sm focus:border-orange-500 focus:outline-none transition-all dark:text-white" />
+						<button type="button" onclick={() => removeSpecRow(i)} class="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-50 text-red-500 hover:bg-red-500 hover:text-white transition-colors dark:bg-red-500/10 dark:hover:bg-red-500">
+							<Icon icon="mdi:close" width="16" height="16" />
+						</button>
 					</div>
-				</div>
-				<div>
-					<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="item-mrp">MRP</label>
-					<div class="relative">
-						<span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">₹</span>
-						<input id="item-mrp" type="number" min="0" step="0.01" bind:value={mrp} placeholder="599"
-							class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 pl-7 pr-4 py-3 text-sm font-medium text-gray-900 dark:text-white focus:border-orange-500 focus:outline-none transition-all" />
-					</div>
-				</div>
-			</div>
-			<div>
-				<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="item-nos">Stock (nos / units)</label>
-				<input id="item-nos" type="number" min="0" bind:value={nos} placeholder="e.g. 100"
-					class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-all" />
-			</div>
-
-			<!-- Platform toggle -->
-			<div class="flex items-center justify-between rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 px-4 py-3">
-				<div>
-					<p class="font-bold text-sm text-gray-900 dark:text-white">Sold via NearBuy Platform</p>
-					<p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Enable in-platform ordering for this item</p>
-				</div>
-				<button type="button" onclick={() => (soldViaPlatform = !soldViaPlatform)}
-					aria-label="Toggle platform selling"
-					class={`relative h-7 w-14 rounded-full transition-colors shadow-inner shrink-0 ${soldViaPlatform ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-700'}`}>
-					<span class={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${soldViaPlatform ? 'left-8' : 'left-1'}`}></span>
+				{/each}
+				<button type="button" onclick={addSpecRow} class="flex w-full items-center justify-center gap-1.5 rounded-xl border-2 border-dashed border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 py-3 text-sm font-bold text-gray-500 dark:text-gray-400 hover:border-orange-500 hover:text-orange-500 transition-all">
+					<Icon icon="mdi:plus" width="16" height="16" /> Add Specification
 				</button>
 			</div>
 		</div>

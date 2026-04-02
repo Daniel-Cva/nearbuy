@@ -80,11 +80,15 @@ export async function POST({ request, platform, cookies }) {
             httpOnly: true,
             secure: true, // Requires session capture over HTTPS
             sameSite: 'none',
-            maxAge: 15 * 60
+            maxAge: 5 * 60 * 60 // 5 hours
         });
 
         return json({
-            login_status: 'success'
+            login_status: 'success',
+            profile: userProfile || { id: cred.id, name: cred.username, email: cred.email, biz_id: cred.biz_id },
+            business: bizData,
+            userid: cred.id,
+            role: cred.role
         }, { status: 200 });
 
     } catch (error) {

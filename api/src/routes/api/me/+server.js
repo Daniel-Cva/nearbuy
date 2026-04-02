@@ -21,7 +21,7 @@ export async function GET({ platform, locals }) {
         let profile = null;
 
         if (payload.role === 'founder') {
-            profile = await db.prepare('SELECT id, biz_id, name, email, phone as mobile, avatar_url, created_at FROM founder WHERE id = ?').bind(userId).first();
+            profile = await db.prepare('SELECT id, biz_id, name, email, phone as mobile, avatar_url, bio, collab_mode, created_at FROM founder WHERE id = ?').bind(userId).first();
         } else if (payload.role === 'user') {
             // Support for shoppers / regular users
             profile = await db.prepare('SELECT id, firstname, lastname, email, phone as mobile, address, city, pincode, district, state, avatar_url, theme, interests, status, created_at FROM user_data WHERE id = ?').bind(userId).first();
@@ -54,7 +54,7 @@ export async function PUT({ request, platform, locals }) {
         const body = await request.json();
         const db = platform.env.DB;
 
-        const { name, email, mobile, password, avatar_url } = body;
+        const { name, email, mobile, password, avatar_url, bio, collab_mode } = body;
         
         const isFounder = payload.role === 'founder';
         const isUser    = payload.role === 'user';
@@ -83,6 +83,8 @@ export async function PUT({ request, platform, locals }) {
             if (email !== undefined)      { profileUpdates.push('email = ?');      profileValues.push(email); }
             if (mobile !== undefined)     { profileUpdates.push('phone = ?');      profileValues.push(mobile); }
             if (avatar_url !== undefined) { profileUpdates.push('avatar_url = ?'); profileValues.push(avatar_url); }
+            if (isFounder && bio !== undefined)         { profileUpdates.push('bio = ?');         profileValues.push(bio); }
+            if (isFounder && collab_mode !== undefined) { profileUpdates.push('collab_mode = ?'); profileValues.push(collab_mode); }
         }
         
         const loginTable = isUser ? 'user_login' : 'biz_login';

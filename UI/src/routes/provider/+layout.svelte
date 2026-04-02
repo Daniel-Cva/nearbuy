@@ -1,7 +1,7 @@
 <script>
-	import { getCurrentUserId, getCurrentBusinessId, getCurrentProfile } from '$lib/stores/auth.svelte.js';
-	import { initializeAuthFromServer } from '$lib/helpers/authInit.js';
+	import { getCurrentUserId, getCurrentBusinessId, getCurrentProfile, isAuthenticated, setAuthFromResponse } from '$lib/stores/auth.svelte.js';
 	import { goto } from '$app/navigation';
+	import { API_BASE_URL } from '$lib/helpers/config.js';
 	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import Icon from '@iconify/svelte';
@@ -32,35 +32,26 @@
 	);
 
 	onMount(async () => {
+		if (isAuthPage || isHome) { loadingAuth = false; return; }
+
+		// If store already populated (from login), skip /api/me
+		if (isAuthenticated()) { loadingAuth = false; return; }
+
+		// Page refresh — re-verify via cookie
 		try {
-			// Skip calling /api/me on the home page as requested by user feedback
-			if (isHome) {
-				loadingAuth = false;
-				return;
-			}
-
-			const result = await initializeAuthFromServer();
-			
-			if (isAuthPage) {
-				// If already logged in and on a login page, go to dashboard
-				if (result.success && result.role === 'provider') {
-					goto('/provider/dashboard');
-				} else {
+			const res = await fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' });
+			if (res.ok) {
+				const data = await res.json();
+				const p = data.profile ?? data;
+				if (p?.id && (data.role === 'provider' || p.biz_id)) {
+					setAuthFromResponse({ profile: p, business: data.business, userid: p.id }, 'provider');
 					loadingAuth = false;
+					return;
 				}
-				return;
 			}
+		} catch (_) {}
 
-			if (!result.success || result.role !== 'provider') {
-				goto('/provider/login');
-			} else {
-				loadingAuth = false;
-			}
-		} catch (err) {
-			console.error('Provider layout auth initialization error:', err);
-			if (!isAuthPage && !isHome) goto('/provider/login');
-			else loadingAuth = false;
-		}
+		goto('/provider/login');
 	});
 
 	function handleTap() {
@@ -82,28 +73,24 @@
 	});
 
 	const sidebarItems = [
-		{ href: '/provider/home', icon: 'mdi:home', label: 'Home', short: 'Home' },
-		{ href: '/provider/dashboard', icon: 'mdi:view-dashboard', label: 'Dashboard', short: 'Stats' },
-		{ href: '/provider/inventory', icon: 'mdi:package-variant-closed', label: 'Inventory', short: 'Stock' },
-		{ href: '/provider/requirements', icon: 'mdi:clipboard-text', label: 'Requirements', short: 'Reqs', badge: 0 },
-		{ href: '/provider/messages', icon: 'mdi:chat', label: 'Messages', short: 'Chat', badge: 0 },
-		{ href: '/provider/staff', icon: 'mdi:account-group', label: 'Staff', short: 'Staff' },
-		{ href: '/provider/advertise', icon: 'mdi:bullhorn', label: 'Advertise', short: 'Ads' },
-		{ href: '/provider/notifications', icon: 'mdi:bell', label: 'Notifications', short: 'Alerts', badge: 0 },
-		{ href: '/provider/orders', icon: 'mdi:history', label: 'Order History', short: 'Orders' },
-		{ href: '/provider/founder/profile', icon: 'mdi:crown', label: 'Profile', short: 'Profile' }
+		{ href: '/provider/inventory',    icon: 'mdi:package-variant-closed',  label: 'Inventory',    short: 'Stock' },
+		{ href: '/provider/messages',     icon: 'mdi:chat',                    label: 'Messages',     short: 'Chat', badge: 0 },
+		{ href: '/provider/requirements', icon: 'mdi:clipboard-text',          label: 'Requirements', short: 'Reqs', badge: 0 },
+		{ href: '/provider/profile',      icon: 'mdi:account-circle',          label: 'Profile',      short: 'Profile' },
+		{ href: '/provider/settings',     icon: 'mdi:cog',                     label: 'Settings',     short: 'Settings' },
+		{ href: '/provider/orders',       icon: 'mdi:history',                 label: 'Order History',short: 'Orders' },
+		{ href: '/provider/notifications',icon: 'mdi:bell',                    label: 'Notifications',short: 'Alerts', badge: 0 }
 	];
 
 	const mobileMainNav = [
-		{ href: '/provider/home', icon: 'mdi:home', label: 'Home', short: 'Home' },
-		{ href: '/provider/dashboard', icon: 'mdi:view-dashboard', label: 'Dashboard', short: 'Stats' },
-		{ href: '/provider/inventory', icon: 'mdi:package-variant-closed', label: 'Inventory', short: 'Stock' },
-		{ href: '/provider/staff', icon: 'mdi:account-group', label: 'Staff', short: 'Staff' }
+		{ href: '/provider/inventory',    icon: 'mdi:package-variant-closed',  label: 'Inventory',    short: 'Stock' },
+		{ href: '/provider/messages',     icon: 'mdi:chat',                    label: 'Messages',     short: 'Chat', badge: 0 },
+		{ href: '/provider/requirements', icon: 'mdi:clipboard-text',          label: 'Requirements', short: 'Reqs', badge: 0 },
+		{ href: '/provider/profile',      icon: 'mdi:account-circle',          label: 'Profile',      short: 'Profile' }
 	];
 
 	const moreItems = [
 		...sidebarItems.filter(i => !mobileMainNav.find(m => m.href === i.href)),
-		{ href: '/provider/settings', icon: 'mdi:cog', label: 'Settings' },
 		{ href: '/provider/login', icon: 'mdi:logout', label: 'Sign Out', danger: true }
 	];
 
@@ -134,7 +121,7 @@
 	<header class={`fixed top-0 right-0 left-0 z-30 flex items-center justify-between border-b border-orange-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 md:hidden ${isAuthPage ? 'hidden' : ''}`}>
 		<a href="/" class="text-xl font-black"><span class="text-gray-900 dark:text-white">Near</span><span class="text-orange-500">Buy</span></a>
 		<div class="flex items-center gap-3">
-			<a href="/provider/founder/profile" class="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-sm font-bold text-white shadow-md shadow-orange-500/20">
+			<a href="/provider/profile" class="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-sm font-bold text-white shadow-md shadow-orange-500/20">
 				{profile?.name?.[0]?.toUpperCase() ?? profile?.founder_name?.[0]?.toUpperCase() ?? 'U'}
 			</a>
 		</div>

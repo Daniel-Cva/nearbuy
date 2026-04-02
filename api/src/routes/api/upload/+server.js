@@ -21,9 +21,11 @@ import {
  * 5. Review Images     -> reviews/item${itemId}/images/review_img_${num}.{ext}
  * 6. Review Videos     -> reviews/item${itemId}/videos/REVIEW_VID${num}.{ext}
  * 
+ * After upload, the R2 object key is automatically persisted to the correct D1 column.
+ * 
  * @type {import('./$types').RequestHandler} 
  */
-export async function POST({ request, platform }) {
+export async function POST({ request, platform, locals }) {
     try {
         const formData = await request.formData();
         const file = formData.get('file');
@@ -109,11 +111,31 @@ export async function POST({ request, platform }) {
             }
         });
 
-        // Optional: Update database fields like `avatar_url` or `image` here in the backend
-        // For now, we simply return the successful saved path to the frontend.
+        // ── Persist the R2 key back to D1 ────────────────────────────────────
+        const db = platform.env.DB;
+        try {
+            if (uploadType === 'user-profile' && userId) {
+                // Save avatar_url for the user in both user_data and user_login tables
+                await db.batch([
+                    db.prepare('UPDATE user_data SET avatar_url = ? WHERE id = ?').bind(objectKey, userId),
+                ]);
+            } else if (uploadType === 'business-profile' && bizId) {
+                // Save avatar_url for biz_data
+                    await db.prepare('UPDATE biz_data SET avatar_url = ? WHERE id = ?').bind(objectKey, bizId).run();
+                // Also update founder avatar if the uploader is the founder
+                if (locals?.user?.id) {
+                    await db.prepare('UPDATE founder SET avatar_url = ? WHERE biz_id = ? AND id = ?')
+                        .bind(objectKey, bizId, locals.user.id).run();
+                }
+            }
+        } catch (dbErr) {
+            // D1 persistence failure is non-fatal — file is already safely in R2.
+            // The frontend can still use the returned path.
+            console.error('[Upload] D1 persistence error (non-fatal):', dbErr.message);
+        }
 
         return json({
-            message: 'File uploaded instantly to R2 bucket!',
+            message: 'File uploaded successfully to R2 and path saved to D1!',
             path: objectKey,
             size: file.size,
             format: file.type

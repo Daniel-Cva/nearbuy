@@ -18,14 +18,11 @@
 
 	// Form fields matching DJ.md §4.4 PATCH payload
 	let productName    = $state('');
+	let itemType       = $state('product');
 	let brand          = $state('');
-	let sellingPrice   = $state('');
-	let mrp            = $state('');
 	let description    = $state('');
 	let category       = $state('');
-	let subCategory    = $state('');
-	let subSubCategory = $state('');
-	let itemStatus     = $state('active');
+	let specRows       = $state([{ key: '', value: '' }]); // Key-value pairs for specifications
 
 	// Image state — existing paths + new file uploads
 	let existingImages = $state([]);   // current R2 paths from API
@@ -33,7 +30,26 @@
 	let newPreviews    = $state([]);   // blob URLs for new files
 
 	// ── Load item + bizId ─────────────────────────────────────────────────────
+	let availableCategories = $state([]);
+	// ── Load item + bizId ─────────────────────────────────────────────────────
 	onMount(async () => {
+		const unroll = (val) => {
+			if (!val) return [];
+			if (typeof val === 'string') {
+				const trimmed = val.trim();
+				if (trimmed.startsWith('[') || (trimmed.startsWith('{') && !trimmed.includes(':'))) {
+					try {
+						let parsed;
+						try { parsed = JSON.parse(trimmed); } catch(e) { parsed = JSON.parse(trimmed.replace(/'/g, '"')); }
+						return unroll(parsed);
+					} catch(e) { return [trimmed]; }
+				}
+				return trimmed ? [trimmed] : [];
+			}
+			if (Array.isArray(val)) return val.flatMap(v => unroll(v));
+			return [val];
+		};
+
 		try {
 			// 1. Get bizId from /api/me (DJ.md §2.1)
 			const me = await fetch(`${API_BASE_URL}/api/me`, {
@@ -45,8 +61,8 @@
 			bizId = meData.biz_id ?? meData.profile?.biz_id ?? meData.business?.id ?? '';
 			if (!bizId) throw new Error('No business ID found.');
 
-			// 2. GET /api/businesses/[bizId]/items/[itemId] (DJ.md §4.3)
-			const res = await fetch(`${API_BASE_URL}/api/businesses/${bizId}/items/${itemId}`, {
+			// 2. GET /api/items/[itemId] (Unified endpoint)
+			const res = await fetch(`${API_BASE_URL}/api/items/${itemId}`, {
 				credentials: 'include',
 				headers: { 'Accept': 'application/json' }
 			});
@@ -56,18 +72,31 @@
 
 			// Populate form from API response
 			productName    = item.product_name  ?? '';
+			itemType       = item.item_type      ?? 'product';
 			brand          = item.brand          ?? '';
-			sellingPrice   = item.selling_price  != null ? String(item.selling_price) : '';
-			mrp            = item.mrp            != null ? String(item.mrp) : '';
 			description    = item.description    ?? '';
-			category       = item.category       ?? '';
-			subCategory    = item.sub_category   ?? '';
-			subSubCategory = item.sub_sub_category ?? '';
-			itemStatus     = item.status         ?? 'active';
 
-			// Parse existing images (JSON array of R2 paths)
-			const raw = item.image ?? item.images ?? [];
-			existingImages = Array.isArray(raw) ? raw : (raw ? [raw] : []);
+			// Load categories
+			const cRes = await fetch(`${API_BASE_URL}/api/categories`);
+			if (cRes.ok) availableCategories = await cRes.json();
+			category       = item.category       ?? '';
+			
+			// Robust unroll for images
+			existingImages = unroll(item.image ?? item.images ?? []);
+			
+			// Parse specifications
+			try {
+				const sRaw = item.specification || item.specs || '{}';
+				const sData = typeof sRaw === 'string' ? JSON.parse(sRaw) : sRaw;
+				if (sData && typeof sData === 'object' && !Array.isArray(sData)) {
+					specRows = Object.entries(sData).map(([k, v]) => ({ key: k, value: v }));
+				}
+				if (specRows.length === 0) specRows = [{ key: '', value: '' }];
+			} catch(e) {
+				specRows = [{ key: '', value: '' }];
+			}
+			
+
 		} catch (err) {
 			errorMsg = err?.message ?? 'Failed to load item.';
 		} finally {
@@ -89,16 +118,47 @@
 		existingImages = existingImages.filter((_, i) => i !== index);
 	}
 
+	function handleRemoveExisting(index) {
+		existingImages = existingImages.filter((_, i) => i !== index);
+	}
+
+	// ── Specifications ────────────────────────────────────────────────────────
+	function addSpecRow() {
+		specRows = [...specRows, { key: '', value: '' }];
+	}
+
+	function removeSpecRow(index) {
+		specRows = specRows.filter((_, i) => i !== index);
+		if (specRows.length === 0) specRows = [{ key: '', value: '' }];
+	}
+
+
 	function removeNew(index) {
 		newImageFiles = newImageFiles.filter((_, i) => i !== index);
 		newPreviews   = newPreviews.filter((_, i) => i !== index);
+	}
+
+	// ── Categories ────────────────────────────────────────────────────────────
+	function handleSubCategoryKeyDown(e) {
+		if (e.key === 'Enter' || e.key === ',') {
+			e.preventDefault();
+			const val = subCategoryInput.trim();
+			if (val && !subCategories.includes(val)) {
+				subCategories = [...subCategories, val];
+			}
+			subCategoryInput = '';
+		}
+	}
+
+	function removeSubCategory(index) {
+		subCategories = subCategories.filter((_, i) => i !== index);
 	}
 
 	// ── Submit: PATCH /api/businesses/[bizId]/items/[itemId] (DJ.md §4.4) ────
 	async function handleSubmit(e) {
 		e.preventDefault();
 		if (!productName.trim()) { errorMsg = 'Product name is required.'; return; }
-		if (!sellingPrice)       { errorMsg = 'Selling price is required.'; return; }
+		if (!category.trim())    { errorMsg = 'Category is required.'; return; }
 		errorMsg = ''; successMsg = ''; saving = true;
 
 		try {
@@ -107,9 +167,14 @@
 			if (newImageFiles.length > 0) {
 				uploading = true;
 				uploadedPaths = await Promise.all(
-					newImageFiles.map(file =>
-						uploadToUniversalApi({ type: 'business-item', bizId, itemId, file })
-							.then(r => r.path)
+					newImageFiles.map((file, idx) =>
+						uploadToUniversalApi({ 
+							type: 'business-item', 
+							bizId, 
+							itemId, 
+							file, 
+							imageName: `item_${Date.now()}_${idx}` // Ensure unique keys in R2
+						}).then(r => r.path)
 					)
 				);
 				uploading = false;
@@ -119,20 +184,26 @@
 			const finalImages = [...existingImages, ...uploadedPaths];
 
 			// Step 2 — PATCH payload (DJ.md §4.4, only send changed fields)
+			// Convert specifications array to object
+			const specsObj = {};
+			specRows.forEach(row => {
+				if (row.key.trim() && row.value.trim()) {
+					specsObj[row.key.trim()] = row.value.trim();
+				}
+			});
+
+			// Step 2 — PATCH payload (DJ.md §4.4, only send changed fields)
 			const payload = {
 				product_name:      productName.trim()    || undefined,
+				item_type:         itemType              || undefined,
 				brand:             brand.trim()          || undefined,
-				selling_price:     sellingPrice ? Number(sellingPrice) : undefined,
-				mrp:               mrp          ? Number(mrp)          : undefined,
 				description:       description.trim()    || undefined,
 				category:          category.trim()       || undefined,
-				sub_category:      subCategory.trim()    || undefined,
-				sub_sub_category:  subSubCategory.trim() || undefined,
-				status:            itemStatus             || undefined,
-				image:             finalImages.length ? finalImages : undefined
+				image:             finalImages,    // Send as raw array
+				specification:     specsObj        // Send as raw object
 			};
 
-			const res = await fetch(`${API_BASE_URL}/api/businesses/${bizId}/items/${itemId}`, {
+			const res = await fetch(`${API_BASE_URL}/api/items/${itemId}`, {
 				method:      'PATCH',
 				credentials: 'include',
 				headers:     { 'Content-Type': 'application/json', 'Accept': 'application/json' },
@@ -239,12 +310,21 @@
 					<Icon icon="mdi:package-variant" width="16" height="16" class="text-orange-500" /> Core Details
 				</h3>
 
-				<div>
-					<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="edit-product-name">
-						Product Name <span class="text-red-500">*</span>
-					</label>
-					<input id="edit-product-name" type="text" bind:value={productName} required
-						class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-all" />
+				<div class="grid grid-cols-2 gap-3">
+					<div>
+						<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="edit-product-name">
+							Product Name <span class="text-red-500">*</span>
+						</label>
+						<input id="edit-product-name" type="text" bind:value={productName} required
+							class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm font-medium text-gray-900 dark:text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-all" />
+					</div>
+					<div>
+						<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="edit-item-type">Item Type</label>
+						<select id="edit-item-type" bind:value={itemType} class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm font-medium text-gray-900 dark:text-white focus:border-orange-500 focus:outline-none transition-all">
+							<option value="product">Product</option>
+							<option value="service">Service</option>
+						</select>
+					</div>
 				</div>
 
 				<div>
@@ -260,75 +340,51 @@
 				</div>
 			</div>
 
-			<!-- Pricing -->
-			<div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 p-5 shadow-sm space-y-4">
-				<h3 class="flex items-center gap-2 font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-2">
-					<Icon icon="mdi:currency-inr" width="16" height="16" class="text-orange-500" /> Pricing
-				</h3>
-				<div class="grid grid-cols-2 gap-3">
-					<div>
-						<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="edit-price">
-							Selling Price <span class="text-red-500">*</span>
-						</label>
-						<div class="relative">
-							<span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">₹</span>
-							<input id="edit-price" type="number" min="0" step="0.01" bind:value={sellingPrice} required
-								class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 pl-7 pr-4 py-3 text-sm font-medium text-gray-900 dark:text-white focus:border-orange-500 focus:outline-none transition-all" />
+
+
+			<!-- Specifications -->
+			<div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 p-5 shadow-sm">
+				<div class="mb-3 flex items-center justify-between border-b border-gray-100 dark:border-gray-800 pb-2">
+					<h3 class="flex items-center gap-2 font-bold text-gray-900 dark:text-white">
+						<Icon icon="mdi:list-status" width="16" height="16" class="text-orange-500" /> Specifications
+					</h3>
+					<button type="button" onclick={addSpecRow} class="text-[10px] font-bold uppercase tracking-widest text-orange-600 dark:text-orange-400 hover:underline">
+						+ Add Row
+					</button>
+				</div>
+				<div class="space-y-3">
+					{#each specRows as row, i}
+						<div class="flex items-center gap-2">
+							<input type="text" bind:value={row.key} placeholder="Label (e.g. Color)"
+								class="w-1/3 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-xs font-bold text-gray-900 dark:text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-all" />
+							<input type="text" bind:value={row.value} placeholder="Value (e.g. Red)"
+								class="flex-1 rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-3 py-2 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-all" />
+							<button type="button" onclick={() => removeSpecRow(i)} class="text-gray-400 hover:text-red-500">
+								<Icon icon="mdi:close-circle-outline" width="16" height="16" />
+							</button>
 						</div>
-					</div>
-					<div>
-						<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="edit-mrp">MRP</label>
-						<div class="relative">
-							<span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 font-bold text-sm">₹</span>
-							<input id="edit-mrp" type="number" min="0" step="0.01" bind:value={mrp}
-								class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 pl-7 pr-4 py-3 text-sm font-medium text-gray-900 dark:text-white focus:border-orange-500 focus:outline-none transition-all" />
-						</div>
-					</div>
+					{/each}
 				</div>
 			</div>
 
-			<!-- Category -->
 			<div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 p-5 shadow-sm space-y-4">
 				<h3 class="flex items-center gap-2 font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-2">
 					<Icon icon="mdi:tag-outline" width="16" height="16" class="text-orange-500" /> Category
 				</h3>
-				<div>
-					<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="edit-category">Category</label>
-					<input id="edit-category" type="text" bind:value={category} placeholder="e.g. Electronics"
-						class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-all" />
-				</div>
-				<div>
-					<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="edit-sub">Sub-Category</label>
-					<input id="edit-sub" type="text" bind:value={subCategory} placeholder="e.g. Smartphones"
-						class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-all" />
-				</div>
-				<div>
-					<label class="block text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-1.5" for="edit-subsub">Sub-Sub-Category</label>
-					<input id="edit-subsub" type="text" bind:value={subSubCategory} placeholder="e.g. Android Phones"
-						class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-orange-500 focus:outline-none transition-all" />
+				
+				<div class="grid grid-cols-1">
+					<div>
+						<select id="edit-category" bind:value={category} required
+							class="w-full rounded-xl border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 px-4 py-3 text-sm font-medium text-gray-900 dark:text-white focus:border-orange-500 focus:outline-none transition-all">
+							<option value="">Select Category</option>
+							{#each availableCategories as cat}
+								<option value={cat.name}>{cat.name}</option>
+							{/each}
+						</select>
+					</div>
 				</div>
 			</div>
 
-			<!-- Status -->
-			<div class="rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 p-5 shadow-sm">
-				<h3 class="flex items-center gap-2 font-bold text-gray-900 dark:text-white border-b border-gray-100 dark:border-gray-800 pb-2 mb-4">
-					<Icon icon="mdi:toggle-switch-outline" width="16" height="16" class="text-orange-500" /> Availability
-				</h3>
-				<div class="flex items-center justify-between">
-					<div>
-						<p class="font-bold text-sm text-gray-900 dark:text-white">Item Status</p>
-						<p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Active items are visible to customers</p>
-					</div>
-					<button type="button" onclick={() => (itemStatus = itemStatus === 'active' ? 'inactive' : 'active')}
-						aria-label="Toggle item status"
-						class={`relative h-7 w-14 rounded-full transition-colors shadow-inner shrink-0 ${itemStatus === 'active' ? 'bg-orange-500' : 'bg-gray-300 dark:bg-gray-700'}`}>
-						<span class={`absolute top-1 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${itemStatus === 'active' ? 'left-8' : 'left-1'}`}></span>
-					</button>
-				</div>
-				<p class="mt-2 text-xs font-semibold {itemStatus === 'active' ? 'text-green-600 dark:text-green-400' : 'text-gray-400'}">
-					{itemStatus === 'active' ? '● Active — visible to customers' : '○ Inactive — hidden from customers'}
-				</p>
-			</div>
 
 			<!-- Submit -->
 			<button type="submit" disabled={saving || !bizId}

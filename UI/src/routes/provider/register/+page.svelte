@@ -43,37 +43,31 @@
 	// Called ONLY once on first mount — fetches API and fills the module-level cache
 	async function loadCategories() {
 		if (_categoryCache) {
-			// Already loaded — restore from memory instantly
 			categoryOptions = _categoryCache;
 			filteredCategories = _categoryCache;
 			return;
 		}
 		categorySearching = true;
 		try {
-			const res = await fetch(`${API_BASE_URL}/api/admin/categories`, {
+			const res = await fetch(`${API_BASE_URL}/api/categories`, {
 				headers: { 'Accept': 'application/json' },
 				credentials: 'include'
 			});
 			if (res.ok) {
-				const resData = await res.json();
-				const raw = resData.categories || resData.data || resData || [];
-				if (Array.isArray(raw) && raw.length > 0) {
+				const raw = await res.json();
+				if (Array.isArray(raw)) {
 					const mapped = raw.map(cat => ({
-						id: cat.cat_name || cat.name || cat.id || cat,
-						label: cat.cat_name || cat.name || cat.label || cat,
-						subCategories: Array.isArray(cat.sub_categories)
-							? cat.sub_categories.map(sub => ({
-									id: sub.cat_name || sub.name || sub.id || sub,
-									label: sub.cat_name || sub.name || sub.label || sub
-							  }))
-							: []
+						id: cat.id || cat.name,
+						label: cat.name,
+						subCategories: (cat.subCategories || []).map(sub => ({
+							id: sub.id || sub.name,
+							label: sub.name
+						}))
 					}));
-					_categoryCache = mapped;  // store once, reuse forever
+					_categoryCache = mapped;
 					categoryOptions = mapped;
 					filteredCategories = mapped;
 				}
-			} else {
-				console.warn('Failed to load categories:', res.status);
 			}
 		} catch (err) {
 			console.error('Failed to load categories:', err);
@@ -392,6 +386,9 @@
 			const appendDoc = (key, file) => {
 				if (!file) return;
 				formData.append(key, file, file.name);
+				// Add metadata clues for backend extension parsing (matching API/src/routes/api/auth/business/register/+server.js expectations)
+				formData.append(`${key}_ORIGINAL_NAME`, file.name);
+				formData.append(`${key}_MIME`, file.type);
 			};
 
 			formData.append('email', email);
@@ -416,8 +413,15 @@
 			formData.append('lat', form.lat !== '' ? String(form.lat) : '');
 			formData.append('long', form.long !== '' ? String(form.long) : '');
 			
-			if (businessAvatarFile) formData.append('avatar', businessAvatarFile);
-			if (founderAvatarFile) formData.append('founder_avatar', founderAvatarFile);
+			// Backend expects 'biz_avatar' and 'founder_avatar'
+			if (businessAvatarFile) {
+				formData.append('biz_avatar', businessAvatarFile, businessAvatarFile.name);
+				formData.append('biz_avatar_MIME', businessAvatarFile.type);
+			}
+			if (founderAvatarFile) {
+				formData.append('founder_avatar', founderAvatarFile, founderAvatarFile.name);
+				formData.append('founder_avatar_MIME', founderAvatarFile.type);
+			}
 
 			for (const docType of ['AADHAR', 'PAN', 'INCOME', 'GST']) {
 				if (kycDocs[docType]) {

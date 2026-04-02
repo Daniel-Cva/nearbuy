@@ -3,112 +3,79 @@ import { verifyPassword, createToken } from '$lib/server/auth';
 import { ulid } from 'ulid';
 import { PUBLIC_APP_NAME } from '$env/static/public';
 
-/** 
- * Nearbuy API - User Login
- * 
- * Flow:
- * 1. Accept email/mobile and password from request body
- * 2. Lookup user in user_login by email or mobile
- * 3. Verify bcrypt password hash
- * 4. Generate short-lived JWT (5m expiry)
- * 5. Retrieve full profile from user_data
- * 6. (Optional) Audit log the login attempt
- * 
- * @type {import('./$types').RequestHandler} 
- */
+/** @type {import('./$types').RequestHandler} */
 export async function POST({ request, platform, cookies }) {
     try {
         const body = await request.json();
         const { email, mobile, username, password } = body;
 
-        // ── Step 1: Validation ────────────────────────────────────────────────
-        // Require at least one identifier (email, mobile, or username) and a password
         if ((!email && !mobile && !username) || !password) {
-            return json({ 
-                message: 'Identifier (Email, Mobile, or Username) and password are required' 
-            }, { status: 400 });
+            return json({ message: 'Email/mobile/username and password are required' }, { status: 400 });
         }
 
-        const db = platform.env.DB;
+        const db         = platform.env.DB;
         const identifier = email || mobile || username;
 
-        // ── Step 2: Authentication ────────────────────────────────────────────
-        // Search in user_login for matching record using any identifier
+        // Real client IP (CF workers → proxies → fallback)
+        const clientIp = request.headers.get('CF-Connecting-IP')
+            || request.headers.get('X-Forwarded-For')?.split(',')[0]?.trim()
+            || 'unknown';
+
+        // ── Lookup user_login ────────────────────────────────────────────────
+        // Note: user_login has 'mobile' column (user_data uses 'phone')
         const loginRecord = await db.prepare(
             'SELECT id, username, email, mobile, password_hash FROM user_login WHERE email = ? OR mobile = ? OR username = ?'
         ).bind(identifier, identifier, identifier).first();
 
         if (!loginRecord) {
-            let errorType = 'email';
-            if (username) errorType = 'username';
-            if (mobile) errorType = 'mobile';
-            return json({ message: `The ${errorType} is not registered with ${PUBLIC_APP_NAME}. Create a new account or try another registered email.` }, { status: 401 });
+            const type = email ? 'email' : mobile ? 'mobile' : 'username';
+            return json({ message: `No account found with that ${type} on ${PUBLIC_APP_NAME}.` }, { status: 401 });
         }
 
-        // Verify password using bcryptjs (via lib/server/auth)
+        // ── Password verify ───────────────────────────────────────────────────
         const isMatch = await verifyPassword(password, loginRecord.password_hash);
         if (!isMatch) {
             try {
-                const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
-                await db.prepare(
-                    'INSERT INTO user_login_log (log_id, userid, ip, success_status) VALUES (?, ?, ?, ?)'
-                ).bind(ulid(), loginRecord.id, clientIp, 0).run();
-            } catch (e) {
-                console.warn('Failed to log failed login attempt:', e);
-            }
-            return json({ message: 'Password is wrong' }, { status: 401 });
+                await db.prepare('INSERT INTO user_login_log (log_id, userid, ip, success_status) VALUES (?, ?, ?, 0)')
+                    .bind(ulid(), loginRecord.id, clientIp).run();
+            } catch (_) {}
+            return json({ message: 'Incorrect password' }, { status: 401 });
         }
 
-        // ── Step 3: Data Retrieval ────────────────────────────────────────────
-        // Fetch full profile from user_data using the linked email
-        const profile = await db.prepare(
-            'SELECT * FROM user_data WHERE email = ?'
-        ).bind(loginRecord.email).first();
-
-        // ── Step 4: Token Generation ──────────────────────────────────────────
+        // ── Set HttpOnly session cookie ───────────────────────────────────────
+        // JWT is only used server-side to verify the cookie — never sent to browser JS
         const token = await createToken(
-            { 
-                userid: loginRecord.id, 
-                email: loginRecord.email, 
-                username: loginRecord.username, 
-                role: 'user' 
-            }, 
+            { id: loginRecord.id, userid: loginRecord.id, email: loginRecord.email, username: loginRecord.username, role: 'user' },
             platform.env.JWT_SECRET
         );
 
         cookies.set('token', token, {
-            path: '/',
-            httpOnly: true,
-            secure: true, // Forces cookie to work over HTTPS
+            path:     '/',
+            httpOnly: true,   // JS cannot access this
+            secure:   true,
             sameSite: 'none',
-            maxAge: 180 * 60 // 3 hours
+            maxAge:   3 * 60 * 60  // 3 hours
         });
 
-        // ── Step 5: Audit Logging ─────────────────────────────────────────────
-        // Log successful login attempt
+        // ── Audit log ─────────────────────────────────────────────────────────
         try {
-            const clientIp = request.headers.get('CF-Connecting-IP') || 'unknown';
-            await db.prepare(
-                'INSERT INTO user_login_log (log_id, userid, ip, success_status) VALUES (?, ?, ?, ?)'
-            ).bind(ulid(), profile?.id || loginRecord.id, clientIp, 1).run();
-        } catch (logError) {
-            console.warn('Failed to log login attempt:', logError);
-            // Don't fail the request if logging fails
-        }
+            await db.prepare('INSERT INTO user_login_log (log_id, userid, ip, success_status) VALUES (?, ?, ?, 1)')
+                .bind(ulid(), loginRecord.id, clientIp).run();
+        } catch (_) {}
 
-        const rawInterests = profile?.interests ? JSON.parse(profile.interests) : [];
-
-        // ── Response ──────────────────────────────────────────────────────────
-        return json({
-            login_status: 'success',
-            id: loginRecord.id
+        // Cookie-only auth — UI calls /api/me separately when it needs profile data
+        return json({ 
+            message: 'Logged in successfully',
+            user: {
+                id: loginRecord.id,
+                username: loginRecord.username,
+                email: loginRecord.email,
+                role: 'user'
+            }
         }, { status: 200 });
 
     } catch (error) {
-        console.error('Login internal error:', error);
-        return json({ 
-            message: 'Internal server error', 
-            error: error.message 
-        }, { status: 500 });
+        console.error('Login error:', error);
+        return json({ message: 'Internal server error', error: error.message }, { status: 500 });
     }
 }

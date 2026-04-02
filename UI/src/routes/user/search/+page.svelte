@@ -95,17 +95,35 @@
 
 	const results = $derived(
 		rawItems.map(i => {
-			const b = i.business || {};
+			const unroll = (val) => {
+				if (typeof val === 'string') {
+					const t = val.trim();
+					if (t.startsWith('[') || t.startsWith('{')) {
+						try {
+							let p;
+							try { p = JSON.parse(t); } 
+							catch(e) { p = JSON.parse(t.replace(/'/g, '"')); }
+							return unroll(p);
+						} catch(e) { return [t]; }
+					}
+					return t ? [t] : [];
+				}
+				if (Array.isArray(val)) return val.flatMap(v => unroll(v));
+				return val ? [val] : [];
+			};
+			const arr = unroll(i.image ?? []);
+			const first = arr.filter(Boolean)[0];
+
 			return {
 				id: i.id,
-				name: i.name,
-				shop: b.name || 'Unknown Store',
-				price: i.price || 0,
+				name: i.product_name || 'Unnamed Item',
+				shop: i.business_name || 'Store',
 				distance: '1.2km', // Mock distance
 				rating: i.rating || 0,
 				category: i.category,
-				type: i.type, // 'product' | 'service'
-				icon: i.type === 'product' ? '📦' : '🔧'
+				type: i.item_type || 'product', // 'product' | 'service'
+				icon: (i.item_type || 'product') === 'product' ? '📦' : '🔧',
+				image: first ? toDisplayUrl(first) : null
 			};
 		})
 	);
