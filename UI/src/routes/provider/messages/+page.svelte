@@ -9,10 +9,10 @@
 
 	onMount(async () => {
 		try {
-			const res = await fetch(`${API_BASE_URL}/api/messages/threads`, { credentials: 'include' });
+			const res = await fetch(`${API_BASE_URL}/api/conversations`, { credentials: 'include' });
 			if (res.ok) {
 				const data = await res.json();
-				rawThreads = data.threads || [];
+				rawThreads = data.conversations || [];
 			}
 		} catch (err) {
 			console.error('Failed to fetch threads:', err);
@@ -23,14 +23,13 @@
 
 	const chats = $derived(
 		rawThreads.map(t => {
-			const otherParticipant = t.participants?.find(p => p.id !== auth.id) || {};
 			return {
 				id: t.id,
-				userName: otherParticipant.name || 'User',
-				userImage: otherParticipant.name?.[0] || '?',
-				lastMessage: t.last_message || 'No messages yet',
-				timestamp: timeAgo(t.updated_at),
-				unreadCount: t.unread_count || 0,
+				userName: t.display_name || 'Customer',
+				userImage: t.display_name?.[0] || '?',
+				lastMessage: 'Active Conversation',
+				timestamp: t.updated_at ? new Date(t.updated_at).toLocaleDateString() : 'Now',
+				unreadCount: 0,
 				isOnline: false
 			};
 		})
