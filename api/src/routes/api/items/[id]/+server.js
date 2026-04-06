@@ -3,7 +3,7 @@ export async function GET({ params, platform }) {
     try {
         const db = platform.env.DB;
         const item = await db.prepare(`
-            SELECT i.*, b.bname as business_name, b.city, b.state, b.district, b.address as biz_address, b.avatar_url as biz_avatar, b.lat, b.long
+            SELECT i.*, b.bname as business_name, b.city, b.state, b.district, b.address as biz_address, b.avatar_url as biz_avatar, b.lat, b.long, b.phones as mobile, b.emails as email
             FROM items i
             JOIN biz_data b ON i.business_id = b.id
             WHERE i.id = ?

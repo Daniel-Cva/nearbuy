@@ -27,17 +27,21 @@ export async function handle({ event, resolve }) {
     event.locals.user = null; // Default to unauthenticated
 
     if (token) {
+        console.log(`[AUTH DEBUG] Token Found:`, token.substring(0, 15) + '...');
         try {
             const secret = event.platform?.env?.JWT_SECRET;
             if (secret) {
                 const payload = await verifyToken(token, secret);
                 if (payload) {
+                    console.log(`[AUTH DEBUG] Success! Extracted ID: ${payload.id || payload.userid}, Role: ${payload.role}`);
                     event.locals.user = payload; // Inject verified identity into locals
                 }
             }
         } catch (e) {
             console.error('[hooks] Token verification error:', e.message);
         }
+    } else {
+        console.log(`[AUTH DEBUG] No token provided in cookies for request: ${event.url.pathname}`);
     }
 
     // 🛡️ CENTRALIZED GUARD: Require authentication for specific API paths (Wildcard: /api/user/*)

@@ -97,6 +97,12 @@ export async function POST({ request, platform, locals }) {
                 objectKey = getReviewVideoPath(itemId, num, ext);
                 break;
 
+            case 'request-attachment':
+                const reqId = formData.get('requestId');
+                if (!reqId) return json({ message: 'requestId is required' }, { status: 400 });
+                objectKey = `requests/req_${reqId}/attachments/attach_${Date.now()}.${ext}`;
+                break;
+
             default:
                 return json({ message: 'Invalid or missing "type" in formData' }, { status: 400 });
         }

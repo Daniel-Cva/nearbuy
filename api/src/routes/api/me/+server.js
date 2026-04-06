@@ -27,6 +27,11 @@ export async function GET({ platform, locals }) {
             profile = await db.prepare('SELECT id, firstname, lastname, email, phone as mobile, address, city, pincode, district, state, avatar_url, theme, interests, status, created_at FROM user_data WHERE id = ?').bind(userId).first();
             if (profile) {
                 profile.name = `${profile.firstname} ${profile.lastname}`.trim();
+                try {
+                    profile.interests = profile.interests ? JSON.parse(profile.interests) : [];
+                } catch(e) {
+                    profile.interests = [];
+                }
             }
         } else {
             profile = await db.prepare('SELECT id, biz_id, name, email, phone as mobile, role, avatar_url, status, created_at FROM biz_staffs WHERE id = ?').bind(userId).first();

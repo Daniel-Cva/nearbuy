@@ -13,18 +13,18 @@ node_modules
 Thumbs.db
 
 # Env
-.env
+# .env
 .env.*
 !.env.example
 !.env.test
 
 # Wrangler local dev secrets (never commit)
-.dev.vars
+# .dev.vars
 .dev.vars.*
 !.dev.vars.example
 
 # SQL files (schema dumps / migrations with potentially sensitive data)
-*.sql
+# *.sql
 
 # Vite
 vite.config.js.timestamp-*

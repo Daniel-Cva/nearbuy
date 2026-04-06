@@ -38,25 +38,14 @@
 			bizId = meData.profile?.biz_id ?? meData.business?.id ?? meData.biz_id ?? '';
 			if (!bizId) throw new Error('No business ID found.');
 
-			// 2. Load item details + reviews in parallel
-			const [itemRes, reviewsRes] = await Promise.all([
-				fetch(`${API_BASE_URL}/api/items/${itemId}`, {
-					credentials: 'include', headers: { 'Accept': 'application/json' }
-				}),
-				fetch(`${API_BASE_URL}/api/reviews?item_id=${itemId}`, {
-					credentials: 'include', headers: { 'Accept': 'application/json' }
-				})
-			]);
+			// 2. Load item details
+			const itemRes = await fetch(`${API_BASE_URL}/api/items/${itemId}`, {
+				credentials: 'include', headers: { 'Accept': 'application/json' }
+			});
 
 			if (!itemRes.ok) throw new Error(`Item not found (${itemRes.status})`);
 			const itemData = await itemRes.json();
 			item = itemData.item ?? itemData.data ?? itemData;
-
-			if (reviewsRes.ok) {
-				const revData = await reviewsRes.json();
-				reviews = Array.isArray(revData.reviews ?? revData.data ?? revData)
-					? (revData.reviews ?? revData.data ?? revData) : (Array.isArray(revData) ? revData : []);
-			}
 		} catch (err) {
 			errorMsg = err?.message ?? 'Failed to load item.';
 		} finally {
@@ -339,91 +328,6 @@
 							</div>
 						{/each}
 					</div>
-				</div>
-			{/if}
-		</div>
-
-		<!-- Reviews -->
-		<div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-			<div class="mb-4 flex items-center justify-between">
-				<h3 class="flex items-center gap-2 font-bold text-gray-900 dark:text-white">
-					<Icon icon="mdi:star-outline" width="16" height="16" class="text-orange-500" />
-					Reviews <span class="text-xs font-medium text-gray-400 ml-1">({reviews.length})</span>
-				</h3>
-			</div>
-
-			{#if reviews.length === 0}
-				<p class="text-sm italic text-gray-400">No reviews yet.</p>
-			{:else}
-				<div class="space-y-5">
-					{#each reviews as review}
-						<div class="border-b border-gray-100 dark:border-gray-800 pb-5 last:border-0 last:pb-0">
-							<!-- Reviewer row -->
-							<div class="flex items-center justify-between mb-2">
-								<div class="flex items-center gap-2">
-									<div class="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-orange-600 text-xs font-bold text-white">
-										{(review.userid ?? review.user_id ?? 'U').toString()[0].toUpperCase()}
-									</div>
-									<div>
-										<p class="text-sm font-bold text-gray-900 dark:text-white">
-											{review.firstname ? `${review.firstname} ${review.lastname || ''}` : `User #${review.userid ?? review.user_id ?? ''}`}
-										</p>
-										{#if review.created_at}
-											<p class="text-[10px] text-gray-400">{new Date(review.created_at).toLocaleDateString('en-IN')}</p>
-										{/if}
-									</div>
-								</div>
-								<div class="flex items-center gap-2">
-									<!-- Star rating -->
-									<div class="flex items-center gap-0.5">
-										{#each Array(5) as _, i}
-											<Icon icon={i < (review.rating ?? 0) ? 'mdi:star' : 'mdi:star-outline'} width="14" height="14" class={i < (review.rating ?? 0) ? 'text-yellow-400' : 'text-gray-300'} />
-										{/each}
-									</div>
-									<!-- Delete review -->
-									<button onclick={() => deleteReview(review.id)} disabled={deletingReviewId === review.id}
-										class="text-gray-400 hover:text-red-500 transition-colors disabled:opacity-60">
-										{#if deletingReviewId === review.id}
-											<Icon icon="mdi:loading" width="14" height="14" class="animate-spin" />
-										{:else}
-											<Icon icon="mdi:trash-can-outline" width="14" height="14" />
-										{/if}
-									</button>
-								</div>
-							</div>
-
-							<!-- Review text -->
-							{#if review.comment ?? review.review_text}
-								<p class="text-sm font-medium text-gray-600 dark:text-gray-300 leading-relaxed">
-									{review.comment ?? review.review_text}
-								</p>
-							{/if}
-
-							<!-- Review images -->
-							{#if Array.isArray(review.review_imageurl) && review.review_imageurl.length}
-								<div class="mt-3 flex gap-2 flex-wrap">
-									{#each review.review_imageurl as imgPath}
-										<!-- svelte-ignore a11y_click_events_have_key_events -->
-										<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-										<img src={toDisplayUrl(imgPath)} alt="Review"
-											class="h-16 w-16 rounded-xl object-cover border border-gray-200 dark:border-gray-700 cursor-pointer hover:opacity-90 transition-opacity"
-											onclick={() => (lightboxSrc = toDisplayUrl(imgPath))} />
-									{/each}
-								</div>
-							{/if}
-
-							<!-- Review videos -->
-							{#if Array.isArray(review.review_videourl) && review.review_videourl.length}
-								<div class="mt-3 flex gap-2 flex-wrap">
-									{#each review.review_videourl as vidPath}
-										<!-- svelte-ignore a11y_media_has_caption -->
-										<video src={toDisplayUrl(vidPath)} controls
-											class="h-32 rounded-xl border border-gray-200 dark:border-gray-700 object-cover"></video>
-									{/each}
-								</div>
-							{/if}
-						</div>
-					{/each}
 				</div>
 			{/if}
 		</div>

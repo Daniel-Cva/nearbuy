@@ -11,7 +11,6 @@
 		city: '',
 		district: '',
 		state: '',
-		country: '',
 		pincode: '',
 		lat: '',
 		lng: '',
@@ -177,23 +176,24 @@
 		
 		const budget = form.minBudget && form.maxBudget ? `₹${form.minBudget} - ₹${form.maxBudget}` : form.minBudget ? `Above ₹${form.minBudget}` : '';
 
-		const payload = {
-			description: { title: form.title, detail: form.description, budget },
-			category: [categoryPath[0] || ''],
-			sub_categories: categoryPath.slice(1),
-			lat: parseFloat(form.lat) || 13.0827,
-			lng: parseFloat(form.lng) || 80.2707,
-			address: `${form.address1}${form.address2 ? ', ' + form.address2 : ''}`,
-			city: form.city,
-			district: form.district,
-			pincode: form.pincode
-		};
-
 		categoryError = '';
 		submitError = '';
 		isSubmitting = true;
 
 		try {
+			// First, post the requirement without attachments so we get the requestId
+			const payload = {
+				description: { title: form.title, detail: form.description, budget },
+				category: [categoryPath[0] || ''],
+				sub_categories: categoryPath.slice(1),
+				lat: parseFloat(form.lat) || 13.0827,
+				lng: parseFloat(form.lng) || 80.2707,
+				address: `${form.address1}${form.address2 ? ', ' + form.address2 : ''}`,
+				city: form.city,
+				district: form.district,
+				pincode: form.pincode
+			};
+
 			const response = await fetch(`${API_BASE_URL}/api/requests`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
@@ -207,7 +207,26 @@
 			}
 
 			const result = await response.json();
-			window.location.href = `/user/radar-search?id=${result.id}`;
+			const reqId = result.id;
+
+			// Handle Attachments
+			const files = document.getElementById('req-attachments').files;
+			if (files && files.length > 0) {
+				for (const file of files) {
+					const formData = new FormData();
+					formData.append('file', file);
+					formData.append('type', 'request-attachment');
+					formData.append('requestId', reqId);
+
+					await fetch(`${API_BASE_URL}/api/upload`, {
+						method: 'POST',
+						credentials: 'include',
+						body: formData
+					});
+				}
+			}
+
+			window.location.href = `/user/radar-search?id=${reqId}`;
 		} catch (error) {
 			console.error('Submit error', error);
 			submitError = error.message;
@@ -344,32 +363,22 @@
 						type="text"
 						bind:value={form.city}
 						placeholder="City"
-						class="w-full rounded-xl border border-gray-300 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300"
-						readonly
+						class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-orange-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
 					/>
 					<input
 						type="text"
 						bind:value={form.district}
 						placeholder="District"
-						class="w-full rounded-xl border border-gray-300 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300"
-						readonly
+						class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-orange-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
 					/>
 				</div>
 
-				<div class="grid grid-cols-2 gap-3">
+				<div class="grid grid-cols-1 gap-3">
 					<input
 						type="text"
 						bind:value={form.state}
 						placeholder="State"
-						class="w-full rounded-xl border border-gray-300 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300"
-						readonly
-					/>
-					<input
-						type="text"
-						bind:value={form.country}
-						placeholder="Country"
-						class="w-full rounded-xl border border-gray-300 bg-gray-50/50 px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none dark:border-gray-700 dark:bg-gray-800/50 dark:text-gray-300"
-						readonly
+						class="w-full rounded-xl border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:border-orange-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white"
 					/>
 				</div>
 				
@@ -556,10 +565,6 @@
 					<div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-2">
 						<span class="block text-gray-400 text-[10px] font-bold uppercase">State</span>
 						<span class="font-bold text-gray-900 dark:text-white">{form.state || '—'}</span>
-					</div>
-					<div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-2">
-						<span class="block text-gray-400 text-[10px] font-bold uppercase">Country</span>
-						<span class="font-bold text-gray-900 dark:text-white">{form.country || '—'}</span>
 					</div>
 					<div class="bg-gray-50 dark:bg-gray-800 rounded-lg p-2">
 						<span class="block text-gray-400 text-[10px] font-bold uppercase">Latitude</span>
