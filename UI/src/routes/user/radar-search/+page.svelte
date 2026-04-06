@@ -35,26 +35,27 @@
 	onMount(async () => {
 		try {
 			const [reqRes, bizRes] = await Promise.all([
-				reqId ? fetch(`${API_BASE_URL}/api/requirements/${reqId}`, { credentials: 'include' }) : Promise.resolve(null),
-				fetch(`${API_BASE_URL}/api/admin/businesses?status=approved`, { credentials: 'include' })
+				reqId ? fetch(`${API_BASE_URL}/api/requests/${reqId}`, { credentials: 'include' }) : Promise.resolve(null),
+				fetch(`${API_BASE_URL}/api/businesses?status=active`, { credentials: 'include' })
 			]);
 
 			if (reqRes && reqRes.ok) {
 				const data = await reqRes.json();
-				req = data.requirement || data;
+				req = data.request || data;
 			}
 
 			if (bizRes && bizRes.ok) {
 				const data = await bizRes.json();
-				allProviders = (data.businesses || []).map(b => ({
+				const businesses = Array.isArray(data) ? data : (data.businesses || []);
+				allProviders = businesses.map(b => ({
 					id: b.id,
 					name: b.founder?.name || b.founder_name || 'Owner',
-					biz: b.name,
+					biz: b.bname || b.name,
 					rating: parseFloat(b.rating) || 0,
-					category: b.type || b.category,
+					category: b.btype || b.type || b.category,
 					jobs: 0,
 					lat: b.lat,
-					lng: b.lng
+					lng: b.long || b.lng
 				}));
 			}
 

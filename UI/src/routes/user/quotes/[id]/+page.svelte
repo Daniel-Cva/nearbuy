@@ -16,13 +16,13 @@
 	onMount(async () => {
 		try {
 			// Fetch request detail
-			const detailRes = await fetch(`${API_BASE_URL}/api/me/request/${requestId}`, { credentials: 'include' });
+			const detailRes = await fetch(`${API_BASE_URL}/api/requests/${requestId}`, { credentials: 'include' });
 			if (!detailRes.ok) throw new Error('Requirement not found');
 			const detailData = await detailRes.json();
-			requestDetail = detailData.request;
+			requestDetail = detailData.request || detailData; // Handle both wrapper and raw response
 
 			// Fetch quotes
-			const quotesRes = await fetch(`${API_BASE_URL}/api/me/request/${requestId}/quotes`, { credentials: 'include' });
+			const quotesRes = await fetch(`${API_BASE_URL}/api/quotes?requestId=${requestId}`, { credentials: 'include' });
 			if (!quotesRes.ok) throw new Error('Failed to load quotes');
 			const quotesData = await quotesRes.json();
 			quotes = quotesData.quotes || [];
@@ -37,17 +37,20 @@
 		if (accepting) return;
 		accepting = true;
 		try {
-			const res = await fetch(`${API_BASE_URL}/api/me/request/${requestId}/quotes`, {
+			const res = await fetch(`${API_BASE_URL}/api/orders`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				credentials: 'include',
 				body: JSON.stringify({
-					businessId,
-					acceptedItemInfo: quote.product_info
+					quote_id: quote.id,
+					request_id: requestId,
+					business_id: businessId,
+					item_data: quote.product_info,
+					price: quote.product_info?.price
 				})
 			});
 			if (!res.ok) throw new Error('Failed to accept quote');
-			goto('/user/history'); // Go to orders/history after success
+			goto('/user/orders'); // Go to orders list after success
 		} catch (err) {
 			alert(err.message);
 		} finally {

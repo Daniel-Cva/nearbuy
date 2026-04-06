@@ -13,17 +13,17 @@
 	async function fetchJobs(bizId) {
 		if (!bizId) return;
 		try {
-			const res = await fetch(`${API_BASE_URL}/api/businesses/${bizId}/orders?status=assigned,in_progress`, { credentials: 'include' });
+			const res = await fetch(`${API_BASE_URL}/api/orders?status=accepted,ready,in_progress`, { credentials: 'include' });
 			if (res.ok) {
 				const data = await res.json();
 				activeJobs = (data.orders || []).map(order => ({
-					id: order.id.toUpperCase(),
-					client: order.user_name || order.user?.name || 'Unknown Client',
-					requirement: order.items?.[0]?.name || 'Service/Product',
+					id: order.id,
+					client: order.user_info?.name || 'Buyer',
+					requirement: order.accepted_item?.name || 'Service/Product',
 					status: order.status,
-					contact: order.user_phone || order.user?.phone || 'N/A',
-					quotedPrice: `₹${(order.total || 0).toLocaleString()}`,
-					date: new Date(order.createdAt || order.created_at).toLocaleString()
+					contact: 'N/A',
+					quotedPrice: `₹${(order.price || 0).toLocaleString()}`,
+					date: new Date(order.created_at).toLocaleString()
 				}));
 			}
 		} catch (err) {
@@ -33,8 +33,8 @@
 
 	onMount(async () => {
 		try {
-			// Fetch business list
-			const res = await fetch(`${API_BASE_URL}/api/me/businesses`, { credentials: 'include' });
+			// Fetch current user/biz info
+			const res = await fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' });
 			if (res.ok) {
 				const data = await res.json();
 				businessList = data.businesses || [];
@@ -53,9 +53,8 @@
 	let markedDone = $state([]);
 
 	async function markJobDone(id) {
-		const orderId = id.toLowerCase();
 		try {
-			const res = await fetch(`${API_BASE_URL}/api/orders/${orderId}/status`, {
+			const res = await fetch(`${API_BASE_URL}/api/orders/${id}`, {
 				method: 'PATCH',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ status: 'delivered' }),

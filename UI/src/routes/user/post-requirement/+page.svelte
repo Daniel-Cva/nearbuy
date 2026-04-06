@@ -209,10 +209,9 @@
 			const result = await response.json();
 			const reqId = result.id;
 
-			// Handle Attachments
-			const files = document.getElementById('req-attachments').files;
-			if (files && files.length > 0) {
-				for (const file of files) {
+			// Handle Attachments via state
+			if (form.attachments.length > 0) {
+				for (const file of form.attachments) {
 					const formData = new FormData();
 					formData.append('file', file);
 					formData.append('type', 'request-attachment');
@@ -462,7 +461,42 @@
 					<span class="text-3xl mb-1">📎</span>
 					<span>Upload images about requirements</span>
 				</label>
-				<input id="req-attachments" type="file" multiple accept="image/*,.pdf" class="hidden" />
+				<input 
+					id="req-attachments" 
+					type="file" 
+					multiple 
+					accept="image/*,.pdf" 
+					class="hidden" 
+					onchange={(e) => {
+						const files = Array.from(e.target.files);
+						form.attachments = [...form.attachments, ...files];
+					}}
+				/>
+				
+				{#if form.attachments.length > 0}
+					<div class="mt-3 flex flex-wrap gap-2">
+						{#each form.attachments as file, i}
+							<div class="relative group h-20 w-20">
+								{#if file.type.startsWith('image/')}
+									<img 
+										src={URL.createObjectURL(file)} 
+										alt={file.name}
+										class="h-full w-full rounded-lg object-cover border border-gray-200 dark:border-gray-700 shadow-sm"
+									/>
+								{:else}
+									<div class="h-full w-full rounded-lg bg-gray-200 dark:bg-gray-800 flex items-center justify-center text-[8px] overflow-hidden text-center p-1 border border-gray-300 dark:border-gray-700 font-bold truncate">
+										{file.name}
+									</div>
+								{/if}
+								<button 
+									type="button" 
+									onclick={() => form.attachments = form.attachments.filter((_, idx) => idx !== i)} 
+									class="absolute -top-1.5 -right-1.5 h-6 w-6 bg-red-500 text-white rounded-full text-[12px] flex items-center justify-center hover:bg-red-600 shadow-lg border-2 border-white dark:border-gray-900 transition-transform active:scale-90"
+								>✕</button>
+							</div>
+						{/each}
+					</div>
+				{/if}
 			</div>
 
 			<!-- Error Output -->
