@@ -5,12 +5,12 @@ const config = {
 	kit: {
 		adapter: adapter(),
 		csrf: {
-			checkOrigin: process.env.NODE_ENV === 'development' ? false : true,
+			checkOrigin: false, // Disable for now to fix local cross-origin 400 errors
 			trustedOrigins: [
 				'http://localhost:5173',
 				'https://localhost:5173',
-				'http://172.18.6.118:5173',
-				'https://172.18.6.118:5173'
+				'http://192.168.0.165:5173',
+				'https://192.168.0.165:5173'
 			]
 		}
 	},

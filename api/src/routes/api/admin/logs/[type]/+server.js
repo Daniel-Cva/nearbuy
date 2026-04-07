@@ -13,7 +13,7 @@ export async function GET({ params, platform, locals }) {
         if (type === 'users') {
             query = 'SELECT l.*, u.email FROM user_activity_log l LEFT JOIN user_data u ON l.userid = u.id ORDER BY l.timestamp DESC LIMIT 100';
         } else if (type === 'businesses') {
-            query = 'SELECT l.*, b.bname, b.bemail FROM biz_activity_log l LEFT JOIN biz_data b ON l.bizid = b.id ORDER BY l.timestamp DESC LIMIT 100';
+            query = 'SELECT l.*, b.bname, b.emails as bemail FROM biz_activity_log l LEFT JOIN biz_data b ON l.bizid = b.id ORDER BY l.timestamp DESC LIMIT 100';
         } else if (type === 'sa') {
             query = 'SELECT l.*, s.email FROM sa_activity_log l LEFT JOIN sa_login s ON l.said = s.id ORDER BY l.timestamp DESC LIMIT 100';
         } else {

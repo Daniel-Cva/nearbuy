@@ -20,24 +20,11 @@
     let notes = $state('');
 
 	onMount(async () => {
-        // Wait for profile if not loaded
-        let attempts = 0;
-        while (!bizId && attempts < 10) {
-            await new Promise(r => setTimeout(r, 200));
-            attempts++;
-        }
-
-        if (!bizId) {
-            errorMsg = "Business ID not found.";
-            loading = false;
-            return;
-        }
-
 		try {
-			const res = await fetch(`${API_BASE_URL}/api/businesses/${bizId}/request/${requestId}`, { credentials: 'include' });
+			const res = await fetch(`${API_BASE_URL}/api/requests/${requestId}`, { credentials: 'include' });
 			if (!res.ok) throw new Error('Requirement not found');
 			const data = await res.json();
-			requestDetail = data.request;
+			requestDetail = data; // Unified API returns the object directly
 		} catch (err) {
 			errorMsg = err.message;
 		} finally {
@@ -50,14 +37,18 @@
 		if (sending) return;
 		sending = true;
 		try {
-			const res = await fetch(`${API_BASE_URL}/api/businesses/${bizId}/request/${requestId}`, {
-				method: 'PATCH',
+			const res = await fetch(`${API_BASE_URL}/api/quotes`, {
+				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				credentials: 'include',
 				body: JSON.stringify({
-					price: parseFloat(price),
-					delivery_time: deliveryDays + ' days',
-					notes
+					requestId: requestId,
+					product_info: {
+						item_name: requestDetail.description?.title || "Requirement Offer",
+						price: parseFloat(price),
+						delivery_time: deliveryDays + ' days',
+						note: notes
+					}
 				})
 			});
 			if (!res.ok) throw new Error('Failed to send quote');

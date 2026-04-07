@@ -43,22 +43,18 @@ export function isAdmin() { return currentRole === 'admin'; }
 
 // ─── Actions ───────────────────────────────────────────────────────────────────
 
-/**
- * Set auth state from login/me response.
- * @param {{userid?: string, role: string, profile?: any, business?: any}} authData
- * @param {string} role - normalized role: 'user' | 'provider' | 'admin'
- */
+/** Set auth state from login/me response. */
 export function setAuthFromResponse(authData, role) {
-	currentRole = role || null;
+	currentRole = role || authData?.role || authData?.profile?.role || null;
 	currentProfile = authData?.profile || null;
 	currentBusiness = authData?.business || null;
-
-	// Normalize user ID
 	currentUserId = authData?.profile?.id || authData?.userid || null;
 
-	// Set business ID if provider
-	if (role === 'provider') {
-		currentBusinessId = currentBusiness?.id || authData?.profile?.biz_id || authData?.profile?.business_id || null;
+	// Use role to manage business_id
+	if (currentRole === 'founder' || currentRole === 'staff' || currentRole === 'provider') {
+		currentBusinessId = currentBusiness?.id || authData?.profile?.biz_id || null;
+	} else {
+		currentBusinessId = null;
 	}
 
 	initialized = true;

@@ -5,7 +5,7 @@
 	import { uploadToUniversalApi, toDisplayUrl } from '$lib/helpers/upload.js';
 	import { getCurrentProfile } from '$lib/stores/auth.svelte.js';
 
-	let profile   = $state(null);
+	let business  = $state(null);
 	let loading   = $state(true);
 	let saving    = $state(false);
 	let uploading = $state(false);
@@ -23,21 +23,17 @@
 	// Load profile ONLY when this page is visited
 	onMount(async () => {
 		try {
-			// Check store first (no network call if already loaded)
-			const stored = getCurrentProfile();
-			if (stored?.id) {
-				profile = stored;
-				syncForm();
-				loading = false;
-				return;
-			}
 			// Otherwise call /api/me
 			const res = await fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' });
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
 			const data = await res.json();
-			profile = data.profile ?? data;
+			// 🛡️ Robust handling: support both old and new response structures
+			profile  = data.profile || data;
+			business = data.business || null;
 			syncForm();
 		} catch (e) {
-			errorMsg = 'Failed to load profile';
+			console.error('Profile fetch error:', e);
+			errorMsg = 'Failed to load profile. Please refresh or check connection.';
 		} finally {
 			loading = false;
 		}
@@ -100,7 +96,8 @@
 			// Reload profile after save
 			const meRes = await fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' });
 			const meData = await meRes.json();
-			profile = meData.profile ?? meData;
+			profile  = meData.profile || meData;
+			business = meData.business || null;
 			isEditing = false;
 			avatarFile = null;
 			syncForm();
@@ -124,7 +121,7 @@
 			});
 			if (res.ok) {
 				const updated = await res.json();
-				profile = updated.profile ?? updated.founder ?? updated;
+				profile = updated.profile || updated;
 				syncForm();
 			}
 		} catch (err) {
@@ -145,12 +142,12 @@
 <div class="min-h-screen bg-gray-50 dark:bg-gray-950 text-gray-900 dark:text-white pb-16">
 	<header class="sticky top-0 z-10 flex items-center gap-3 border-b border-gray-200 bg-white/95 dark:border-gray-800 dark:bg-gray-950/95 px-4 py-3 backdrop-blur">
 		<!-- svelte-ignore a11y_invalid_attribute -->
-		<a href="javascript:history.back()" class="text-gray-500 hover:text-gray-900 dark:hover:text-white">
+		<a href="javascript:history.back()" aria-label="Go back" class="text-gray-500 hover:text-gray-900 dark:hover:text-white leading-none">
 			<Icon icon="mdi:arrow-left" width="20" />
 		</a>
 		<h1 class="flex-1 font-bold">My Profile</h1>
 		{#if !isEditing && !loading}
-			<button onclick={startEdit} class="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 flex items-center gap-1">
+			<button onclick={startEdit} aria-label="Edit Profile" class="text-xs font-bold uppercase tracking-wide text-orange-600 dark:text-orange-400 flex items-center gap-1">
 				<Icon icon="mdi:pencil-outline" width="14" /> Edit
 			</button>
 		{/if}
@@ -173,7 +170,7 @@
 				<div class="h-24 w-24 rounded-full bg-gray-200 dark:bg-gray-700"></div>
 				<div class="h-4 w-40 rounded bg-gray-200 dark:bg-gray-700"></div>
 			</div>
-		{:else}
+		{:else if profile}
 		<!-- Avatar card -->
 		<div class="flex flex-col items-center bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-6 shadow-sm relative overflow-hidden">
 			<div class="absolute top-0 inset-x-0 h-20 bg-linear-to-br from-orange-400/20 to-orange-600/20"></div>
@@ -194,8 +191,8 @@
 			</div>
 
 			{#if isEditing}
-				<input type="text" bind:value={editName} placeholder="Your name"
-					class="text-center font-bold text-sm bg-gray-50 dark:bg-gray-800 border-b-2 border-gray-300 dark:border-gray-700 px-3 py-1.5 focus:border-orange-500 focus:outline-none w-full max-w-xs" />
+				<input type="text" id="edit-profile-name" bind:value={editName} placeholder="Your name" aria-label="Edit Profile Name"
+					class="text-center font-bold text-sm bg-gray-100 dark:bg-gray-800 border-b-2 border-gray-300 dark:border-gray-700 px-3 py-1.5 focus:border-orange-500 focus:outline-none w-full max-w-xs rounded-lg" />
 			{:else}
 				<h2 class="text-xl font-black z-10">{displayName}</h2>
 				<p class="text-sm text-gray-500 dark:text-gray-400 mt-1 z-10">{profile?.email ?? ''}</p>
@@ -211,14 +208,65 @@
 				<Icon icon="mdi:text-account" width="16" /> About
 			</h3>
 			{#if isEditing}
-				<textarea bind:value={editBio} placeholder="Write a short personal or professional bio..."
-					class="w-full h-32 bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-orange-500 focus:outline-none resize-none"></textarea>
+				<textarea id="edit-profile-bio" bind:value={editBio} placeholder="Write a short personal or professional bio..." aria-label="Edit Profile Bio"
+					class="w-full h-32 bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-orange-500 focus:outline-none resize-none"></textarea>
 			{:else}
 				<p class="text-sm text-gray-600 dark:text-gray-300 leading-relaxed whitespace-pre-line">
 					{profile?.bio || 'No bio provided yet.'}
 				</p>
 			{/if}
 		</div>
+
+		<!-- Business Profile -->
+		{#if business}
+			<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 shadow-sm relative overflow-hidden">
+				<div class="absolute top-0 right-0 p-4 opacity-10">
+					<Icon icon="mdi:store-outline" width="80" />
+				</div>
+				<h3 class="font-bold text-orange-600 dark:text-orange-500 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-2">
+					<Icon icon="mdi:storefront-outline" width="16" /> Business Information
+				</h3>
+				
+				<div class="space-y-4">
+					<div class="flex items-start gap-4">
+						<div class="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
+							{#if business.avatar_url}
+								<img src={toDisplayUrl(business.avatar_url)} alt="Biz" class="w-full h-full object-cover rounded-xl" />
+							{:else}
+								<Icon icon="mdi:briefcase-outline" class="text-gray-400" width="24" />
+							{/if}
+						</div>
+						<div class="flex-1 min-w-0">
+							<h4 class="font-black text-gray-900 dark:text-white truncate">{business.bname}</h4>
+							<p class="text-[10px] font-bold uppercase tracking-widest text-orange-500">{business.category}</p>
+						</div>
+					</div>
+
+					<div class="grid grid-cols-2 gap-4 pt-2 border-t border-gray-50 dark:border-gray-800/50">
+						<div>
+							<p class="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">City / Town</p>
+							<p class="text-sm font-bold">{business.city || '—'}</p>
+						</div>
+						<div>
+							<p class="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Pincode</p>
+							<p class="text-sm font-bold">{business.pincode || '—'}</p>
+						</div>
+					</div>
+
+					<div>
+						<p class="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Full Address</p>
+						<p class="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-800/50 italic">
+							{business.address || 'No address provided.'}
+						</p>
+					</div>
+
+					<div class="flex items-center gap-2 pt-2">
+						<span class={`flex h-2 w-2 rounded-full ${business.status === 'active' ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+						<span class="text-[10px] font-bold uppercase tracking-widest text-gray-500">Business Status: {business.status || 'Offline'}</span>
+					</div>
+				</div>
+			</div>
+		{/if}
 
 		<!-- Collab Feature -->
 		<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 flex items-center justify-between shadow-sm">
@@ -231,7 +279,7 @@
 					<p class="text-[10px] text-gray-500 dark:text-gray-400">Discoverable to other founders</p>
 				</div>
 			</div>
-			<button onclick={toggleCollab} class={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${collabOn ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-700'}`}>
+			<button onclick={toggleCollab} aria-label="Toggle Collab Mode" class={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${collabOn ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-700'}`}>
 				<span class={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${collabOn ? 'translate-x-5' : 'translate-x-0'}`}></span>
 			</button>
 		</div>
@@ -239,33 +287,33 @@
 		<!-- Contact info -->
 		<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 shadow-sm">
 			<h3 class="font-bold text-orange-600 dark:text-orange-500 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-2">
-				<Icon icon="mdi:card-account-details-outline" width="16" /> Contact
+				<Icon icon="mdi:card-account-details-outline" width="16" /> Contact Details
 			</h3>
 
 			<div>
-				<label class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Email</label>
+				<label for="edit-profile-email" class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Email Address</label>
 				{#if isEditing}
-					<input type="email" bind:value={editEmail}
-						class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-orange-500 focus:outline-none" />
+					<input type="email" id="edit-profile-email" bind:value={editEmail}
+						class="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl px-4 py-3 text-sm focus:border-orange-500 focus:outline-none" />
 				{:else}
-					<p class="font-medium text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 rounded-xl border border-gray-100 dark:border-gray-700/50">
+					<div class="font-medium text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 rounded-xl border border-gray-100 dark:border-gray-700/50">
 						{profile?.email ?? '—'}
-					</p>
+					</div>
 				{/if}
 			</div>
 
 			<div>
-				<label class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Mobile</label>
+				<label for="edit-profile-mobile" class="text-[10px] font-bold uppercase tracking-wider text-gray-500 mb-1 block">Mobile Number</label>
 				{#if isEditing}
 					<div class="relative">
-						<span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">+91</span>
-						<input type="tel" bind:value={editMobile}
-							class="w-full bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl pl-12 pr-4 py-3 text-sm focus:border-orange-500 focus:outline-none" />
+						<span class="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm pointer-events-none">+91</span>
+						<input type="tel" id="edit-profile-mobile" bind:value={editMobile}
+							class="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl pl-12 pr-4 py-3 text-sm focus:border-orange-500 focus:outline-none" />
 					</div>
 				{:else}
-					<p class="font-medium text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 rounded-xl border border-gray-100 dark:border-gray-700/50">
+					<div class="font-medium text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 rounded-xl border border-gray-100 dark:border-gray-700/50">
 						{profile?.mobile ?? profile?.phone ? `+91 ${profile?.mobile ?? profile?.phone}` : '—'}
-					</p>
+					</div>
 				{/if}
 			</div>
 		</div>
@@ -275,7 +323,7 @@
 				<button onclick={cancelEdit} class="flex-1 py-4 rounded-2xl font-bold text-gray-600 bg-white border-2 border-gray-200 hover:bg-gray-50 transition-colors shadow-sm dark:bg-gray-800 dark:border-gray-700 dark:text-gray-300">
 					Cancel
 				</button>
-				<button onclick={saveProfile} disabled={saving}
+				<button onclick={saveProfile} disabled={saving} aria-label="Save Changes"
 					class="flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-white bg-orange-500 hover:bg-orange-600 shadow-[0_8px_32px_-4px_rgba(249,115,22,0.4)] transition-all active:scale-[0.98] disabled:opacity-60">
 					{#if saving}
 						<Icon icon="mdi:loading" width="16" class="animate-spin" />

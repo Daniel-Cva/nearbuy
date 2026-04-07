@@ -62,8 +62,9 @@
 		errorMsg = '';
 		
 		try {
-			// Payload must match Backend api/src/routes/api/requests/[request_id]/quotes/+server.js
+			// Payload must match Unified /api/quotes endpoint
 			const payload = {
+				request_id: reqId,
 				product_info: {
 					item_id: selectedItemId,
 					item_name: items.find(i => i.id === selectedItemId)?.product_name || 'Service',
@@ -74,7 +75,7 @@
 				}
 			};
 
-			const res = await fetch(`${API_BASE_URL}/api/requests/${reqId}/quotes`, {
+			const res = await fetch(`${API_BASE_URL}/api/quotes`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify(payload),
@@ -129,7 +130,7 @@
 			<form onsubmit={handleSubmit} class="space-y-6">
 				<!-- My Inventory -->
 				<div class="space-y-3">
-					<label class="block text-[10px] font-black uppercase tracking-widest text-gray-400">Match with My Product</label>
+					<span class="block text-[10px] font-black uppercase tracking-widest text-gray-400">Match with My Product</span>
 					<div class="flex flex-wrap gap-2">
 						{#each items as item}
 							<button
@@ -223,6 +224,7 @@
 <style>
 	:global(.line-clamp-2) {
 		display: -webkit-box;
+		line-clamp: 2;
 		-webkit-line-clamp: 2;
 		-webkit-box-orient: vertical;
 		overflow: hidden;

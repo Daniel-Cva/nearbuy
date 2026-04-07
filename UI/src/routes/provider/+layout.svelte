@@ -43,7 +43,7 @@
 			if (res.ok) {
 				const data = await res.json();
 				const p = data.profile ?? data;
-				if (p?.id && (data.role === 'provider' || p.biz_id)) {
+				if (p?.id && (data.role === 'founder' || data.role === 'provider' || data.role === 'staff' || p.biz_id)) {
 					setAuthFromResponse({ profile: p, business: data.business, userid: p.id }, 'provider');
 					loadingAuth = false;
 					return;
@@ -78,7 +78,7 @@
 		{ href: '/provider/requirements', icon: 'mdi:clipboard-text',          label: 'Requirements', short: 'Reqs', badge: 0 },
 		{ href: '/provider/profile',      icon: 'mdi:account-circle',          label: 'Profile',      short: 'Profile' },
 		{ href: '/provider/settings',     icon: 'mdi:cog',                     label: 'Settings',     short: 'Settings' },
-		{ href: '/provider/orders',       icon: 'mdi:history',                 label: 'Order History',short: 'Orders' },
+		{ href: '/provider/jobs',         icon: 'mdi:history',                 label: 'Active Jobs',  short: 'Jobs' },
 		{ href: '/provider/notifications',icon: 'mdi:bell',                    label: 'Notifications',short: 'Alerts', badge: 0 }
 	];
 

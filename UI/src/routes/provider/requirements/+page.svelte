@@ -25,10 +25,10 @@
         }
 
 		try {
-			const res = await fetch(`${API_BASE_URL}/api/businesses/${bizId}/feed`, { credentials: 'include' });
+			const res = await fetch(`${API_BASE_URL}/api/requests?bizId=${bizId}`, { credentials: 'include' });
 			if (!res.ok) throw new Error('Failed to fetch incoming requests');
 			const data = await res.json();
-			rawRequirements = data.requests || [];
+			rawRequirements = data; // Unified API returns the array directly
 		} catch (err) {
 			errorMsg = err.message;
 		} finally {

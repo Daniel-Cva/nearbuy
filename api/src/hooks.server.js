@@ -13,7 +13,7 @@ export async function handle({ event, resolve }) {
         const origin = event.request.headers.get('origin');
 		return new Response(null, {
 			headers: {
-				'Access-Control-Allow-Origin': origin || 'http://localhost:5173',
+				'Access-Control-Allow-Origin': origin || 'http://192.168.0.165:5173',
 				'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
 				'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-sveltekit-action',
                 'Access-Control-Allow-Credentials': 'true',
@@ -36,12 +36,14 @@ export async function handle({ event, resolve }) {
                     console.log(`[AUTH DEBUG] Success! Extracted ID: ${payload.id || payload.userid}, Role: ${payload.role}`);
                     event.locals.user = payload; // Inject verified identity into locals
                 }
+            } else {
+                console.warn('[hooks] JWT_SECRET MISSING from platform environment!');
             }
         } catch (e) {
             console.error('[hooks] Token verification error:', e.message);
         }
     } else {
-        console.log(`[AUTH DEBUG] No token provided in cookies for request: ${event.url.pathname}`);
+        console.log(`[AUTH DEBUG] No token provided in cookies or header for request: ${event.url.pathname}`);
     }
 
     // 🛡️ CENTRALIZED GUARD: Require authentication for specific API paths (Wildcard: /api/user/*)
@@ -93,15 +95,13 @@ export async function handle({ event, resolve }) {
     const response = await resolve(event);
 
     const origin = event.request.headers.get('origin');
-	if (origin) {
-        response.headers.set('Access-Control-Allow-Origin', origin);
-    } else {
-        response.headers.set('Access-Control-Allow-Origin', 'http://localhost:5173');
-    }
-    
-	response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-	response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-sveltekit-action');
+    response.headers.set('Access-Control-Allow-Origin', origin || '*');
+    response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
+    response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, x-sveltekit-action');
     response.headers.set('Access-Control-Allow-Credentials', 'true');
+    response.headers.set('Access-Control-Max-Age', '86400');
+
+    return response;
 
 	return response;
 }
