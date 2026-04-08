@@ -13,7 +13,7 @@ export async function handle({ event, resolve }) {
         const origin = event.request.headers.get('origin');
 		return new Response(null, {
 			headers: {
-				'Access-Control-Allow-Origin': origin || 'https://10.15.86.118:5173',
+				'Access-Control-Allow-Origin': origin || 'https://192.168.140.118:5173',
 				'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
 				'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-sveltekit-action',
                 'Access-Control-Allow-Credentials': 'true',
@@ -29,7 +29,7 @@ export async function handle({ event, resolve }) {
     if (token) {
         console.log(`[AUTH DEBUG] Token Found:`, token.substring(0, 15) + '...');
         try {
-            const secret = event.platform?.env?.JWT_SECRET;
+            const secret = event.platform?.env?.JWT_SECRET || 'nearbuy_dev_secret_key_123';
             if (secret) {
                 const payload = await verifyToken(token, secret);
                 if (payload) {
@@ -77,17 +77,27 @@ export async function handle({ event, resolve }) {
     if (isProtectedArea && !isPublicAuthRoute && !isPublicCategoryRoute && !isPublicBusinessRoute) {
         // 1. Check if token is simply missing or invalid
         if (!isAuthenticated) {
+            const origin = event.request.headers.get('origin');
             return new Response(JSON.stringify({ message: 'Unauthorized: Token validation failed or missing' }), {
                 status: 401,
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': origin || 'https://192.168.140.118:5173',
+                    'Access-Control-Allow-Credentials': 'true'
+                }
             });
         }
 
         // 2. Strict Role Check: All /api/admin/* paths REQUIRE role === 'admin'
         if (pathname.startsWith('/api/admin/') && event.locals.user.role !== 'admin') {
+            const origin = event.request.headers.get('origin');
             return new Response(JSON.stringify({ message: 'Unauthorized: Admin privileges required' }), {
                 status: 401,
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 
+                    'Content-Type': 'application/json',
+                    'Access-Control-Allow-Origin': origin || 'https://192.168.140.118:5173',
+                    'Access-Control-Allow-Credentials': 'true'
+                }
             });
         }
     }

@@ -72,18 +72,20 @@ export async function POST({ params, request, platform, locals }) {
         const messageId = 'msg_' + ulid();
         const payload = JSON.stringify({ text, type });
 
-        // 2. Transactional send + update conversation timestamp
-        await db.batch([
-            db.prepare(`
-                INSERT INTO messages (id, conversation_id, sender_id, payload, created_at)
-                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
-            `).bind(messageId, conversationId, myId, payload),
-            db.prepare('UPDATE conversations SET last_message_at = CURRENT_TIMESTAMP WHERE id = ?').bind(conversationId)
-        ]);
+        // 2. Sequential send + update conversation timestamp
+        console.log(`[CHAT LOG] Inserting message ${messageId} into convo ${conversationId}`);
+        await db.prepare(`
+            INSERT INTO messages (id, conversation_id, sender_id, payload, created_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+        `).bind(messageId, conversationId, myId, payload).run();
+
+        console.log(`[CHAT LOG] Updating last_message_at for convo ${conversationId}`);
+        await db.prepare('UPDATE conversations SET last_message_at = CURRENT_TIMESTAMP WHERE id = ?').bind(conversationId).run();
 
         return json({ message: 'Sent', id: messageId }, { status: 201 });
 
     } catch (e) {
+        console.error('[CHAT POST ERROR]', e.message);
         return json({ message: 'Internal server error', error: e.message }, { status: 500 });
     }
 }

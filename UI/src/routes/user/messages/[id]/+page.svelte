@@ -66,8 +66,13 @@
 		sending = true;
 
 		// Optimistic update
+		const myId = auth.biz_id || auth.id;
+		if (!myId) {
+			alert("Session error: User identity not found. Please log in again.");
+			return;
+		}
+
 		const tempId = 'temp_' + Date.now();
-		const myId = auth.user.bizId || auth.user.id;
 		messages = [...messages, {
 			id: tempId,
 			sender_id: myId,
@@ -84,17 +89,20 @@
 				credentials: 'include'
 			});
 			
+			sending = false;
+
 			if (res.ok) {
 				await fetchMessages();
 			} else {
-				// Remove optimistic message on failure
+				const errorData = await res.json().catch(() => ({}));
 				messages = messages.filter(m => m.id !== tempId);
-				alert("Failed to send message");
+				alert(`Failed to send: ${errorData.message || res.statusText}`);
 			}
 		} catch (err) {
-			console.error('Send error:', err);
-		} finally {
 			sending = false;
+			console.error('Send error:', err);
+			messages = messages.filter(m => m.id !== tempId);
+			alert("Connection error. Is the server running?");
 		}
 	}
 
@@ -140,7 +148,8 @@
 			</div>
 		{:else}
 			{#each messages as msg (msg.id)}
-				{@const isMe = msg.sender_id === (auth.user.bizId || auth.user.id)}
+				{@const myId = auth.biz_id || auth.id}
+				{@const isMe = msg.sender_id === myId}
 				<div class={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}>
 					<div class={`flex max-w-[80%] flex-col ${isMe ? 'items-end' : 'items-start'}`}>
 						<div 

@@ -17,11 +17,13 @@ export async function GET({ url, platform, locals }) {
             SELECT a.*, 
                    r.status as req_status, r.description as req_description,
                    ud.firstname || ' ' || ud.lastname as user_name, ud.email as user_email, ud.phone as user_phone, ud.avatar_url as user_avatar, ud.address as user_address, ud.city as user_city,
-                   bd.bname as biz_name, bd.emails as biz_emails, bd.phones as biz_phones, bd.avatar_url as biz_avatar, bd.address as biz_address, bd.city as biz_city, bd.lat as biz_lat, bd.long as biz_long
+                   bd.bname as biz_name, bd.emails as biz_emails, bd.phones as biz_phones, bd.avatar_url as biz_avatar, bd.address as biz_address, bd.city as biz_city, bd.lat as biz_lat, bd.long as biz_long,
+                   f.name as founder_name, f.email as founder_email, f.phone as founder_phone
             FROM acceptances a
             JOIN requests r ON a.request_id = r.id
             LEFT JOIN user_data ud ON a.user_id = ud.id
             LEFT JOIN biz_data bd ON a.business_id = bd.id
+            LEFT JOIN founder f ON bd.id = f.biz_id
             WHERE (a.user_id = ? OR a.business_id = ? OR a.business_id IN (SELECT biz_id FROM biz_login WHERE id = ?))
         `;
         let params = [userId, bizId || userId, userId];
@@ -56,7 +58,12 @@ export async function GET({ url, platform, locals }) {
                 address: o.biz_address,
                 city: o.biz_city,
                 lat: o.biz_lat,
-                long: o.biz_long
+                long: o.biz_long,
+                founder: {
+                    name: o.founder_name,
+                    email: o.founder_email,
+                    phone: o.founder_phone
+                }
             }
         }));
 

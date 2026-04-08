@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import { API_BASE_URL } from '$lib/helpers/config.js';
 	import { auth } from '$lib/stores/auth.svelte.js';
+	import { toDisplayUrl } from '$lib/helpers/upload.js';
 
 	let threads = $state([]);
 	let loading = $state(true);
@@ -85,8 +86,8 @@
 					>
 						<div class="relative shrink-0">
 							<div class="flex h-14 w-14 items-center justify-center rounded-2xl bg-linear-to-br from-gray-100 to-gray-200 text-xl font-black text-gray-600 shadow-sm dark:from-gray-800 dark:to-gray-700 dark:text-gray-400">
-								{#if thread.display_avatar && thread.display_avatar.includes('/')}
-									<img src={`${API_BASE_URL}/api/media?path=${thread.display_avatar}`} alt="" class="h-full w-full object-cover rounded-2xl" />
+								{#if thread.display_avatar}
+									<img src={toDisplayUrl(thread.display_avatar)} alt="" class="h-full w-full object-cover rounded-2xl" />
 								{:else}
 									{getDisplayAvatar(thread)}
 								{/if}

@@ -77,8 +77,8 @@ export async function GET({ url, platform, locals }) {
 // POST: Create a new requirement and "Broadcast" it
 export async function POST({ request, platform, locals }) {
     try {
-        if (!locals.user || (locals.user.role !== 'user' && locals.user.role !== 'provider')) {
-            // Allow both for testing/flexibility, but usually 'user'
+        if (!locals.user) {
+            return json({ message: 'Unauthorized: You must be logged in to post a requirement' }, { status: 401 });
         }
         
         let body;

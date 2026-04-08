@@ -217,9 +217,13 @@
 									<div class="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gray-50 dark:bg-gray-800 py-4 font-black text-gray-400 uppercase tracking-widest text-[10px]">
 										<Icon icon="mdi:clock-outline" /> Waiting for merchant to complete
 									</div>
-									<a href="/user/messages" class="px-5 rounded-2xl border border-gray-100 flex items-center justify-center text-gray-400 hover:text-orange-500 hover:border-orange-500 transition-all">
-										<Icon icon="mdi:chat" width="20" />
-									</a>
+									<button 
+                                        onclick={() => startChat(order.business_id)}
+                                        class="px-5 rounded-2xl border border-gray-100 flex items-center justify-center text-gray-400 hover:text-orange-500 hover:border-orange-500 transition-all active:scale-95"
+                                        title="Chat with Merchant"
+                                    >
+										<Icon icon="mdi:chat-processing-outline" width="22" />
+									</button>
 								</div>
 							{/if}
 						</div>
@@ -263,13 +267,58 @@
 								</div>
 							</div>
 
-							<div class="space-y-2 py-1">
-                                {#if quote.product_info?.notes}
-								    <p class="text-sm font-bold text-gray-700 dark:text-gray-300">"{quote.product_info.notes}"</p>
+							<div class="space-y-3 py-1">
+                                {#if quote.product_info?.item_id}
+                                    {@const img = quote.product_info.image || quote.product_info.images}
+                                    <div class="flex items-center gap-4 p-3 rounded-2xl bg-gray-50 dark:bg-gray-800 border border-gray-100 dark:border-gray-700/50">
+                                        <div class="h-16 w-16 shrink-0 rounded-xl bg-gray-100 dark:bg-gray-800 overflow-hidden shadow-sm border border-gray-100 dark:border-gray-800 flex items-center justify-center">
+                                            {#if img && img !== '[]' && img !== 'null'}
+                                                <img 
+                                                    src={toDisplayUrl(img)} 
+                                                    alt="" 
+                                                    class="h-full w-full object-cover" 
+                                                    onerror={(e) => {
+                                                        console.log('[IMG ERROR] Failed to load:', e.target.src);
+                                                        e.target.src = 'https://images.unsplash.com/photo-1555041469-a586c61ea9bc?w=200&q=80';
+                                                    }}
+                                                />
+                                            {:else}
+                                                <div class="flex flex-col items-center justify-center opacity-30">
+                                                    <Icon icon="mdi:image-off-outline" width="20" />
+                                                    <span class="text-[8px] font-black uppercase">Catalog</span>
+                                                </div>
+                                            {/if}
+                                        </div>
+                                        <div class="flex-1 overflow-hidden">
+                                            <p class="text-[9px] font-black uppercase tracking-widest text-orange-500 mb-0.5">Catalog Item</p>
+                                            <h5 class="font-bold text-gray-900 dark:text-white truncate text-sm">{quote.product_info.item_name}</h5>
+                                            <div class="flex items-center gap-2 mt-1">
+                                                {#if quote.product_info.brand}
+                                                    <span class="px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-600 text-[8px] font-black uppercase tracking-widest">{quote.product_info.brand}</span>
+                                                {/if}
+                                                <a href={`/user/item/${quote.product_info.item_id}`} class="text-[9px] font-black text-orange-600 dark:text-orange-400 hover:underline flex items-center gap-0.5">
+                                                    View Details <Icon icon="mdi:chevron-right" />
+                                                </a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                {:else if quote.product_info?.item_name || quote.product_info?.brand}
+                                    <div class="flex flex-wrap gap-2 mb-2">
+                                        {#if quote.product_info?.item_name}
+                                            <span class="px-2 py-0.5 rounded-lg bg-orange-500/10 text-orange-600 text-[10px] font-black uppercase tracking-widest">{quote.product_info.item_name}</span>
+                                        {/if}
+                                        {#if quote.product_info?.brand}
+                                            <span class="px-2 py-0.5 rounded-lg bg-blue-500/10 text-blue-600 text-[10px] font-black uppercase tracking-widest">{quote.product_info.brand}</span>
+                                        {/if}
+                                    </div>
                                 {/if}
-								<div class="flex items-center gap-3 text-xs text-gray-500">
+
+                                {#if quote.product_info?.notes}
+								    <p class="text-sm font-bold text-gray-700 dark:text-gray-300 leading-relaxed italic">"{quote.product_info.notes}"</p>
+                                {/if}
+								<div class="flex items-center gap-3 text-xs text-gray-500 pt-1">
 									<span class="flex items-center gap-1 font-bold">
-										<Icon icon="mdi:clock-outline" width="14" height="14" class="text-gray-400" />
+										<Icon icon="mdi:truck-delivery-outline" width="14" height="14" class="text-orange-500" />
 										Delivery: {quote.product_info?.delivery_time || 'Immediate'}
 									</span>
 								</div>
@@ -317,20 +366,36 @@
 					<div>
 						<p class="font-black text-gray-900 dark:text-white">{contactOrder.biz_info?.name}</p>
 						{#if contactOrder.biz_info?.city}
-							<p class="text-xs text-gray-500 flex items-center gap-1"><Icon icon="mdi:map-marker" width="12" />{contactOrder.biz_info.city}</p>
+							<p class="text-[10px] text-gray-500 flex items-center gap-1 font-bold uppercase tracking-tight"><Icon icon="mdi:map-marker" width="12" />{contactOrder.biz_info.city}</p>
 						{/if}
 					</div>
 				</div>
 
-				<div class="flex gap-3">
-					{#if contactOrder.biz_info?.phones?.[0]}
-						<a href={`tel:${contactOrder.biz_info.phones[0]}`}
+                {#if contactOrder.biz_info?.founder?.name}
+                    <div class="px-4 py-3 rounded-xl bg-white/50 dark:bg-black/20 border border-orange-200/50 dark:border-orange-500/10">
+                        <p class="text-[9px] font-black uppercase tracking-widest text-orange-600 mb-1">Person in Charge (Founder)</p>
+                        <div class="flex items-center gap-2">
+                            <Icon icon="mdi:account-tie" class="text-orange-500" width="16" />
+                            <span class="font-bold text-sm text-gray-800 dark:text-gray-200">{contactOrder.biz_info.founder.name}</span>
+                        </div>
+                        {#if contactOrder.biz_info.founder.phone}
+                            <div class="flex items-center gap-2 mt-1">
+                                <Icon icon="mdi:phone" class="text-gray-400" width="14" />
+                                <span class="text-xs text-gray-500">{contactOrder.biz_info.founder.phone}</span>
+                            </div>
+                        {/if}
+                    </div>
+                {/if}
+
+				<div class="flex gap-2">
+					{#if contactOrder.biz_info?.phones?.[0] || contactOrder.biz_info?.founder?.phone}
+						<a href={`tel:${contactOrder.biz_info.founder?.phone || contactOrder.biz_info.phones[0]}`}
 							class="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-green-500 py-3 text-sm font-black text-white shadow-md active:scale-95 transition-all">
 							<Icon icon="mdi:phone" width="18" /> Call
 						</a>
 					{/if}
-					{#if contactOrder.biz_info?.emails?.[0]}
-						<a href={`mailto:${contactOrder.biz_info.emails[0]}`}
+					{#if contactOrder.biz_info?.emails?.[0] || contactOrder.biz_info?.founder?.email}
+						<a href={`mailto:${contactOrder.biz_info.founder?.email || contactOrder.biz_info.emails[0]}`}
 							class="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-blue-500 py-3 text-sm font-black text-white shadow-md active:scale-95 transition-all">
 							<Icon icon="mdi:email" width="18" /> Email
 						</a>

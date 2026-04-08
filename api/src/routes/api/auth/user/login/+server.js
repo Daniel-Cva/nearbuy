@@ -44,9 +44,10 @@ export async function POST({ request, platform, cookies }) {
 
         // ── Set HttpOnly session cookie ───────────────────────────────────────
         // JWT is only used server-side to verify the cookie — never sent to browser JS
+        const secret = platform.env.JWT_SECRET || 'nearbuy_dev_secret_key_123';
         const token = await createToken(
             { id: loginRecord.id, userid: loginRecord.id, email: loginRecord.email, username: loginRecord.username, role: 'user' },
-            platform.env.JWT_SECRET
+            secret
         );
 
         cookies.set('token', token, {

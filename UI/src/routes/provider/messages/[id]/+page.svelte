@@ -63,23 +63,38 @@
 		sending = true;
 
 		// Optimistic
-		const myId = auth.user.bizId || auth.user.id;
+		const myId = auth.biz_id || auth.id;
+		if (!myId) {
+			alert("Session error: Merchant identity not found. Please log in again.");
+			return;
+		}
+
 		const tempId = 'temp_' + Date.now();
 		messages = [...messages, { id: tempId, sender_id: myId, text: text, created_at: new Date().toISOString() }];
 		await scrollToBottom();
 
 		try {
-			await fetch(`${API_BASE_URL}/api/conversations/${convoId}`, {
+			const res = await fetch(`${API_BASE_URL}/api/conversations/${convoId}`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ text, type: 'text' }),
 				credentials: 'include'
 			});
-			fetchMessages();
-		} catch (err) {
-			console.error('Send error:', err);
-		} finally {
+			
 			sending = false;
+
+			if (res.ok) {
+				await fetchMessages();
+			} else {
+				const errorData = await res.json().catch(() => ({}));
+				messages = messages.filter(m => m.id !== tempId);
+				alert(`Failed to send: ${errorData.message || res.statusText}`);
+			}
+		} catch (err) {
+			sending = false;
+			console.error('Send error:', err);
+			messages = messages.filter(m => m.id !== tempId);
+			alert("Connection error. Is the server running?");
 		}
 	}
 
@@ -179,7 +194,8 @@
 			</div>
 		{:else}
 			{#each messages as message (message.id)}
-				{@const isMe = message.sender_id === (auth.user.bizId || auth.user.id)}
+				{@const myId = auth.biz_id || auth.id}
+				{@const isMe = message.sender_id === myId}
 				<div class={`flex w-full ${isMe ? 'justify-end' : 'justify-start'}`}>
 					<div class={`flex max-w-[80%] flex-col ${isMe ? 'items-end' : 'items-start'}`}>
 						<div 

@@ -1,4 +1,7 @@
 <script>
+	/** @type {import('./$types').PageData} */
+	import { onMount } from 'svelte';
+	import Icon from '@iconify/svelte';
 	import NearBuyMap from '$lib/components/NearBuyMap.svelte';
 	import { getCurrentUserId } from '$lib/stores/auth.svelte.js';
 	import { API_BASE_URL } from '$lib/helpers/config.js';
@@ -19,9 +22,11 @@
 		attachments: []
 	});
 
+    let loadingDetails = $state(true);
 	let pincodeResults = $state([]);
 	let isSearchingPincode = $state(false);
 	let pincodeError = $state('');
+    let allCategories = $state({});
 
 	async function searchPincode() {
 		if (String(form.pincode).length !== 6) return;
@@ -45,6 +50,34 @@
 			isSearchingPincode = false;
 		}
 	}
+
+    onMount(async () => {
+        try {
+            // 1. Session check to prevent 401 later
+            const meRes = await fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' });
+            if (!meRes.ok) {
+                window.location.href = '/user/login?redirect=/user/post-requirement';
+                return;
+            }
+
+            // 2. Load Categories from API
+            const catRes = await fetch(`${API_BASE_URL}/api/categories`, { credentials: 'include' });
+            if (catRes.ok) {
+                const cats = await catRes.json();
+                // Group by type and name for the picker
+                const tree = { 'Product': {}, 'Service': {} };
+                cats.forEach(c => {
+                    const type = c.type === 'service' ? 'Service' : 'Product';
+                    tree[type][c.name] = []; // We don't have sub-categories in API yet, so we treat them as final
+                });
+                allCategories = tree;
+            }
+        } catch (e) {
+            console.error('Initial load error', e);
+        } finally {
+            loadingDetails = false;
+        }
+    });
 
 	function applyPincodeResult(res) {
 		form.city = res.city;
@@ -88,8 +121,27 @@
 		geocoding = true;
 		form.lat = lat.toFixed(6);
 		form.lng = lng.toFixed(6);
-		// Address fields will be filled using pincode search (your API)
-		geocoding = false;
+		
+        try {
+            const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+            if (res.ok) {
+                const data = await res.json();
+                const addr = data.address || {};
+                
+                form.pincode = addr.postcode || '';
+                form.city = addr.city || addr.town || addr.village || '';
+                form.district = addr.state_district || addr.county || '';
+                form.state = addr.state || '';
+                
+                // Construct a readable address line 1
+                const parts = [addr.road, addr.suburb, addr.neighbourhood].filter(Boolean);
+                form.address1 = parts.join(', ') || data.display_name.split(',')[0];
+            }
+        } catch (e) {
+            console.error('Reverse Geocode failed', e);
+        } finally {
+		    geocoding = false;
+        }
 	}
 
 	function confirmLocation() {
@@ -117,39 +169,6 @@
 		);
 	}
 	
-	const allCategories = {
-		'Product': {
-			'Electronics': {
-				'TV': {
-					'MI': ['32 INCH', '43 INCH', '55 INCH'],
-					'Samsung': ['43 INCH', '55 INCH', '65 INCH'],
-					'LG': ['43 INCH', '55 INCH']
-				},
-				'Mobiles': {
-					'Apple': ['iPhone 13', 'iPhone 14', 'iPhone 15'],
-					'Samsung': ['S23', 'S24']
-				},
-				'Accessories': ['Cases', 'Chargers', 'Headphones']
-			},
-			'Fashion': {
-				'Men': ['Shirts', 'T-Shirts', 'Trousers'],
-				'Women': ['Sarees', 'Kurtas', 'Dresses']
-			},
-			'Groceries': {
-				'Staples': ['Rice', 'Dal', 'Flour'],
-				'Snacks': ['Chips', 'Biscuits']
-			},
-			'Furniture': {
-				'Living Room': ['Sofas', 'TV Units'],
-				'Bedroom': ['Beds', 'Wardrobes']
-			}
-		},
-		'Service': {
-			'Repair': ['Mobile Repair', 'Appliance Repair', 'Plumbing'],
-			'Cleaning': ['Home Cleaning', 'Car Wash'],
-			'Salon': ['Haircut', 'Facial', 'Massage']
-		}
-	};
 
 	function getCurrentCategoryOptions() {
 		let current = allCategories;

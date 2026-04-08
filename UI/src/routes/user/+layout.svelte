@@ -48,10 +48,6 @@
 			loadingAuth = false;
 			return;
 		}
-		if (isHome) {
-			loadingAuth = false;
-			return;
-		}
 
 		// Check if the auth store already has a user (set from login/register response)
 		if (isAuthenticated()) {

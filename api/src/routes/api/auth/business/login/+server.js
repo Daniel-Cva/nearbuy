@@ -68,12 +68,13 @@ export async function POST({ request, platform, cookies }) {
             .bind(ulid(), cred.biz_id, request.headers.get('CF-Connecting-IP') || 'unknown', 1)
             .run();
 
+        const secret = platform.env.JWT_SECRET || 'nearbuy_dev_secret_key_123';
         const token = await createToken({ 
             id: cred.id, 
             userid: cred.id,
             bizId: cred.biz_id, 
             role: cred.role 
-        }, platform.env.JWT_SECRET);
+        }, secret);
 
         cookies.set('token', token, {
             path: '/',

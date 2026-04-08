@@ -3,12 +3,13 @@
 	import { page } from '$app/state';
 	import { goto } from '$app/navigation';
 	import { API_BASE_URL } from '$lib/helpers/config.js';
-	import { getCurrentProfile } from '$lib/stores/auth.svelte.js';
+	import { getCurrentProfile, getCurrentBusinessId } from '$lib/stores/auth.svelte.js';
+	import { toDisplayUrl } from '$lib/helpers/upload.js';
 	import Icon from '@iconify/svelte';
 
 	let requestId = $derived(page.params.id);
     let profile   = $derived(getCurrentProfile());
-    let bizId     = $derived(profile?.biz_id);
+    let bizId     = $derived(getCurrentBusinessId());
 
     let requestDetail = $state(null);
     let existingQuote = $state(null);
@@ -19,13 +20,23 @@
     let price = $state('');
     let deliveryDays = $state('');
     let notes = $state('');
+    let inventory = $state([]);
+    let showInventoryModal = $state(false);
+    let selectedItem = $state(null);
+    let inventorySearch = $state('');
+
+    let filteredInventory = $derived(
+        inventory.filter(i => 
+            i.product_name.toLowerCase().includes(inventorySearch.toLowerCase()) ||
+            (i.brand && i.brand.toLowerCase().includes(inventorySearch.toLowerCase()))
+        )
+    );
 
 	onMount(async () => {
 		try {
 			const res = await fetch(`${API_BASE_URL}/api/requests/${requestId}`, { credentials: 'include' });
 			if (!res.ok) throw new Error('Requirement not found');
-			const data = await res.json();
-			requestDetail = data; 
+			requestDetail = await res.json(); 
 
             // Check for existing quote from this business
             const qRes = await fetch(`${API_BASE_URL}/api/quotes?requestId=${requestId}`, { credentials: 'include' });
@@ -40,6 +51,27 @@
 		}
 	});
 
+    // Reactive fetching for inventory to handle auth delay
+    $effect(() => {
+        if (bizId) {
+            console.log('[CATALOG] Fetching inventory for biz:', bizId);
+            fetch(`${API_BASE_URL}/api/items?business_id=${bizId}`, { credentials: 'include' })
+                .then(res => res.ok ? res.json() : [])
+                .then(data => {
+                    inventory = data.items || data; // Handle both wrapper and raw array
+                })
+                .catch(err => console.error('[CATALOG] Fetch error:', err));
+        }
+    });
+
+    // Auto-select item if requested (reactive)
+    $effect(() => {
+        if (requestDetail?.item_id && inventory.length > 0 && !selectedItem) {
+            const requested = inventory.find(i => i.id === requestDetail.item_id);
+            if (requested) selectedItem = requested;
+        }
+    });
+
 	async function handleSendQuote(e) {
         e.preventDefault();
 		if (sending) return;
@@ -51,8 +83,12 @@
 				credentials: 'include',
 				body: JSON.stringify({
 					requestId: requestId,
+                    item_id: selectedItem?.id || null,
 					product_info: {
-						item_name: requestDetail.description?.title || "Requirement Offer",
+						item_id: selectedItem?.id || null,
+						item_name: selectedItem?.product_name || requestDetail.description?.title || "Requirement Offer",
+						brand: selectedItem?.brand || null,
+                        image: selectedItem?.image || null,
 						price: parseFloat(price),
 						delivery_time: deliveryDays + ' days',
 						note: notes
@@ -67,6 +103,12 @@
 		} finally {
 			sending = false;
 		}
+	}
+
+	function selectFromInventory(item) {
+		selectedItem = item;
+		notes = `Offering our ${item.brand || ''} ${item.product_name}. ${item.description || ''}`;
+		showInventoryModal = false;
 	}
 </script>
 
@@ -166,12 +208,43 @@
                     <p class="text-sm font-bold text-gray-500 uppercase tracking-wide">This requirement is no longer accepting quotes.</p>
                 </div>
             {:else}
-                <!-- Send Quote Form -->
-                <form onsubmit={handleSendQuote} class="rounded-2xl border border-orange-200 bg-orange-50/20 p-6 shadow-sm dark:border-orange-950/30 dark:bg-orange-950/5 space-y-4">
-                    <h3 class="flex items-center gap-2 font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest text-xs px-1">
-                        <Icon icon="mdi:send-variant-outline" width="16" height="16" />
-                        Your Best Quote
-                    </h3>
+				<!-- Send Quote Form -->
+				<form onsubmit={handleSendQuote} class="rounded-2xl border border-orange-200 bg-orange-50/20 p-6 shadow-sm dark:border-orange-950/30 dark:bg-orange-950/5 space-y-4">
+                    <div class="flex items-center justify-between px-1">
+                        <h3 class="flex items-center gap-2 font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest text-xs">
+                            <Icon icon="mdi:send-variant-outline" width="16" height="16" />
+                            Your Best Quote
+                        </h3>
+                        <button 
+                            type="button" 
+                            onclick={() => showInventoryModal = true}
+                            class="text-[10px] font-black uppercase tracking-widest text-white bg-orange-500 px-3 py-1.5 rounded-lg active:scale-95 transition-transform shadow-lg shadow-orange-500/20"
+                        >
+                            Pick from Inventory
+                        </button>
+                    </div>
+
+                    {#if selectedItem}
+                        <div class="mx-1 flex items-center justify-between rounded-xl bg-white border border-orange-200 p-3 dark:bg-gray-900 dark:border-orange-900/40 shadow-inner">
+                            <div class="flex items-center gap-3">
+                                <div class="h-10 w-10 shrink-0 rounded-lg bg-gray-100 dark:bg-gray-800 overflow-hidden">
+                                    {#if selectedItem.image && selectedItem.image !== '[]'}
+                                        {@const imgObj = JSON.parse(selectedItem.image)}
+                                        <img src={`https://pub-e682b9321ee844e393cf660f83a2f3f7.r2.dev/${imgObj[0]}`} alt="" class="h-full w-full object-cover" />
+                                    {:else}
+                                        <div class="h-full w-full flex items-center justify-center text-xs text-gray-400 font-black">?</div>
+                                    {/if}
+                                </div>
+                                <div>
+                                    <p class="text-xs font-black text-gray-900 dark:text-white truncate">{selectedItem.product_name}</p>
+                                    <p class="text-[9px] font-black text-gray-400 uppercase tracking-wider">{selectedItem.brand || 'No Brand'}</p>
+                                </div>
+                            </div>
+                            <button type="button" onclick={() => selectedItem = null} class="text-gray-400 hover:text-red-500 p-1">
+                                <Icon icon="mdi:close-circle" width="18" />
+                            </button>
+                        </div>
+                    {/if}
 
                     <div class="grid grid-cols-2 gap-4">
                         <div class="space-y-1">
@@ -204,4 +277,64 @@
             {/if}
 		{/if}
 	</div>
+
+    <!-- Inventory Modal -->
+    {#if showInventoryModal}
+        <div class="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <button class="absolute inset-0 bg-black/60 backdrop-blur-sm" onclick={() => showInventoryModal = false} aria-label="Close"></button>
+            <div class="relative w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl dark:bg-gray-900 overflow-hidden flex flex-col max-h-[85vh]">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-black uppercase tracking-widest text-gray-900 dark:text-white">Your Catalog</h3>
+                    <button onclick={() => showInventoryModal = false} class="text-gray-400">
+                        <Icon icon="mdi:close" width="24" />
+                    </button>
+                </div>
+
+                <div class="mb-4">
+                    <div class="relative">
+                        <Icon icon="mdi:magnify" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" width="18" />
+                        <input 
+                            type="text" 
+                            bind:value={inventorySearch}
+                            placeholder="Search items by name or brand..." 
+                            class="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-10 pr-4 text-sm focus:border-orange-500 focus:outline-none dark:border-gray-800 dark:bg-gray-950"
+                        />
+                    </div>
+                </div>
+
+                <div class="overflow-y-auto flex-1 space-y-3 pr-2 scrollbar-thin">
+                    {#each filteredInventory as item}
+                        <button 
+                            onclick={() => selectFromInventory(item)}
+                            class="w-full flex items-center gap-4 p-3 rounded-2xl border border-gray-100 bg-gray-50 hover:bg-orange-50 hover:border-orange-200 dark:bg-gray-800 dark:border-gray-700 dark:hover:bg-gray-800 transition-all text-left group"
+                        >
+                            <div class="h-16 w-16 rounded-xl bg-white dark:bg-gray-900 overflow-hidden shadow-sm shrink-0">
+                                {#if item.image && item.image !== '[]'}
+                                    {@const imgObj = JSON.parse(item.image)}
+                                    <img src={toDisplayUrl(imgObj[0])} alt="" class="h-full w-full object-cover" />
+                                {/if}
+                            </div>
+                            <div class="flex-1 overflow-hidden">
+                                <h4 class="font-black text-gray-900 dark:text-white group-hover:text-orange-600 transition-colors truncate">{item.product_name}</h4>
+                                <p class="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">{item.brand || 'Generic'}</p>
+                                <p class="text-xs text-gray-500 line-clamp-1">{item.description || 'No description'}</p>
+                            </div>
+                            <Icon icon="mdi:plus-circle" class="text-gray-300 group-hover:text-orange-500" width="24" />
+                        </button>
+                    {:else}
+                        <div class="py-20 text-center space-y-4 px-6 scale-in-center">
+                            <div class="h-16 w-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto text-3xl">🗄️</div>
+                            <div>
+                                <p class="font-black text-gray-900 dark:text-white uppercase tracking-widest text-xs">Catalog is Empty</p>
+                                <p class="text-xs text-gray-500 mt-1">You haven't added any products to your inventory yet.</p>
+                            </div>
+                            <a href="/provider/profile" class="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-orange-600 bg-orange-100 px-4 py-2 rounded-xl active:scale-95 transition-transform">
+                                <Icon icon="mdi:plus" /> Add Products Now
+                            </a>
+                        </div>
+                    {/each}
+                </div>
+            </div>
+        </div>
+    {/if}
 </div>

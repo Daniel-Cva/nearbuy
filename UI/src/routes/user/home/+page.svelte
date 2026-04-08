@@ -176,6 +176,18 @@
 			interestModal.loading = false;
 		}
 	}
+    
+    function calculateDistance(lat1, lon1, lat2, lon2) {
+        if (!lat1 || !lon1 || !lat2 || !lon2) return null;
+        const R = 6371; // km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                  Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                  Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return (R * c).toFixed(1);
+    }
 </script>
 
 <svelte:head>
@@ -317,6 +329,14 @@
 										<span class="bg-black/60 backdrop-blur-md text-[8px] text-white font-black px-2 py-0.5 rounded-full uppercase tracking-widest leading-relaxed">
 											{item.item_type}
 										</span>
+                                        {#if userLoc.lat && item.biz_lat}
+                                            {@const dist = calculateDistance(userLoc.lat, userLoc.lng, item.biz_lat, item.biz_long)}
+                                            {#if dist}
+                                                <span class="bg-orange-600/90 backdrop-blur-md text-[8px] text-white font-black px-2 py-0.5 rounded-full uppercase tracking-widest leading-relaxed">
+                                                    {dist} km away
+                                                </span>
+                                            {/if}
+                                        {/if}
 									</div>
 								</div>
 								<div class="p-3">
@@ -331,19 +351,6 @@
 									</div>
 								</div>
 							</a>
-							<!-- Direct Interest Button -->
-							<button 
-								onclick={(e) => {
-									e.preventDefault();
-									e.stopPropagation();
-									initDirectInterest(item);
-								}}
-								class="absolute bottom-11 right-3 h-10 w-10 flex items-center justify-center rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-500/30 transform transition-all active:scale-90 hover:scale-110 group-hover:translate-y-[-4px]"
-								title="I'm Interested"
-								aria-label="I'm Interested"
-							>
-								<Icon icon="mdi:heart-flash" width="20" />
-							</button>
 						</div>
 					{/each}
 				</div>

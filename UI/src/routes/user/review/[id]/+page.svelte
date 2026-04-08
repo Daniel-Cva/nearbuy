@@ -2,6 +2,7 @@
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
 	import { API_BASE_URL } from '$lib/helpers/config.js';
+	import { uploadToUniversalApi, toDisplayUrl } from '$lib/helpers/upload.js';
 
 	const orderId = page.params.id;
 
@@ -12,6 +13,8 @@
 	let submitting = $state(false);
 	let tags = $state([]);
 	let errorMsg = $state('');
+	let attachments = $state([]); // Array of { path, type }
+	let uploadingMedia = $state(false);
 
 	// Order info fetched so we know which business to review
 	let order = $state(null);
@@ -41,6 +44,44 @@
 		tags = tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag];
 	}
 
+	async function handleFileUpload(e) {
+		const files = Array.from(e.target.files);
+		if (files.length === 0) return;
+
+		uploadingMedia = true;
+		errorMsg = '';
+
+		try {
+			for (const file of files) {
+				const isVideo = file.type.startsWith('video/');
+				const uploadType = isVideo ? 'review-video' : 'review-image';
+				
+				// Use item_id if available, otherwise fallback to a generic identifier
+				const itemIdForPath = order?.accepted_item?.id || `biz_rev_${order?.business_id || orderId.slice(0, 8)}`;
+				const uploadNum = (attachments.length + 1).toString();
+
+				const res = await uploadToUniversalApi({
+					file,
+					type: uploadType,
+					itemId: itemIdForPath,
+					num: uploadNum
+				});
+
+				attachments = [...attachments, { path: res.path, type: isVideo ? 'video' : 'image' }];
+			}
+		} catch (err) {
+			console.error('Upload failed:', err);
+			errorMsg = 'Failed to upload one or more files.';
+		} finally {
+			uploadingMedia = false;
+			e.target.value = ''; // Reset input
+		}
+	}
+
+	function removeAttachment(path) {
+		attachments = attachments.filter(a => a.path !== path);
+	}
+
 	async function handleSubmit(e) {
 		e.preventDefault();
 		if (!stars || submitting) return;
@@ -57,8 +98,11 @@
 				body: JSON.stringify({
 					acceptance_id: orderId,
 					business_id: order?.business_id,
+					item_id: order?.accepted_item?.id || null,
 					rating: stars,
-					review_text: reviewText
+					review_text: reviewText,
+					image_url: attachments.filter(a => a.type === 'image').map(a => a.path),
+					review_video_url: attachments.filter(a => a.type === 'video').map(a => a.path)
 				})
 			});
 
@@ -158,6 +202,41 @@
 					></textarea>
 				</div>
 
+				<!-- Media Upload -->
+				<div>
+					<p class="mb-3 text-sm text-gray-500 dark:text-gray-400">Add Photos or Video (optional)</p>
+					<div class="grid grid-cols-3 gap-3">
+						{#each attachments as media}
+							<div class="relative aspect-square overflow-hidden rounded-xl border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-800 shadow-sm">
+								{#if media.type === 'video'}
+									<div class="flex h-full w-full items-center justify-center bg-slate-900 text-white">
+										<span class="text-xs font-black uppercase tracking-tighter">Video</span>
+									</div>
+								{:else}
+									<img src={toDisplayUrl(media.path)} alt="Preview" class="h-full w-full object-cover" />
+								{/if}
+								<button 
+									type="button" 
+									onclick={() => removeAttachment(media.path)}
+									class="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md"
+								>✕</button>
+							</div>
+						{/each}
+						
+						{#if attachments.length < 6}
+							<label class="flex aspect-square cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-gray-200 bg-white transition-all hover:border-orange-500 hover:bg-orange-50/30 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-orange-500/50">
+								<input type="file" multiple accept="image/*,video/*" class="hidden" onchange={handleFileUpload} disabled={uploadingMedia} />
+								{#if uploadingMedia}
+									<div class="h-6 w-6 animate-spin rounded-full border-2 border-orange-500 border-t-transparent"></div>
+								{:else}
+									<span class="text-2xl text-gray-400">+</span>
+									<span class="text-[10px] font-black uppercase tracking-widest text-gray-500 mt-1">Upload</span>
+								{/if}
+							</label>
+						{/if}
+					</div>
+				</div>
+
 				{#if errorMsg}
 					<p class="rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 p-4 text-sm font-bold text-red-500">{errorMsg}</p>
 				{/if}
@@ -165,8 +244,8 @@
 				<button
 					id="btn-submit-review"
 					type="submit"
-					disabled={!stars || submitting}
-					class={`w-full rounded-2xl py-4 text-lg font-bold transition-all ${stars && !submitting ? 'bg-orange-500 text-white hover:bg-orange-400 active:scale-95' : 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-600'}`}
+					disabled={!stars || submitting || uploadingMedia}
+					class={`w-full rounded-2xl py-4 text-lg font-bold transition-all ${stars && !submitting && !uploadingMedia ? 'bg-orange-500 text-white hover:bg-orange-400 active:scale-95' : 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-600'}`}
 				>
 					{#if submitting}
 						Submitting...
