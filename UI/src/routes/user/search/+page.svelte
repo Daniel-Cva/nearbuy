@@ -1,7 +1,7 @@
 <script>
 	let query = $state('');
 	let minDistance = $state('');
-	let maxDistance = $state(20);
+	let maxDistance = $state('');
 	let priceMin = $state('');
 	let priceMax = $state('');
 	let rating = $state(0);

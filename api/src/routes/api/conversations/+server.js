@@ -3,7 +3,8 @@ import { ulid } from 'ulid';
 
 /**
  * PATH: /api/conversations
- * Unified conversation list for users and merchants.
+ * Conversation list for users and merchants. Each conversation has two participants
+ * (either user↔user, user↔biz, or biz↔biz).
  */
 export async function GET({ platform, locals }) {
     try {
@@ -11,41 +12,35 @@ export async function GET({ platform, locals }) {
         const db = platform.env.DB;
         const myId = locals.user.bizId || locals.user.id;
 
-        // 1. Fetch conversations where user is a participant
-        // We join to get both participant names (user and business) for UI context
+        // Fetch conversations where I am a participant
         const { results } = await db.prepare(`
-            SELECT c.*, 
-                   ud.firstname || ' ' || ud.lastname as user_name, ud.avatar_url as user_avatar,
-                   bd.bname as biz_name, bd.avatar_url as biz_avatar
+            SELECT c.*
             FROM conversations c
-            LEFT JOIN user_data ud ON (c.participant1_id = ud.id OR c.participant2_id = ud.id)
-            LEFT JOIN biz_data bd ON (c.participant1_id = bd.id OR c.participant2_id = bd.id)
             WHERE (c.participant1_id = ? OR c.participant2_id = ?)
-            ORDER BY c.updated_at DESC
+            ORDER BY c.last_message_at DESC
         `).bind(myId, myId).all();
 
-        return json({
-            user_id: myId,
-            conversations: results.map(c => {
-                // Determine the other participant's info for the UI
-                const isP1 = (c.participant1_id === myId);
-                const otherPId = isP1 ? c.participant2_id : c.participant1_id;
-                const otherName = (c.biz_name && otherPId === c.participant1_id) || (c.biz_name && otherPId === c.participant2_id) ? c.biz_name : c.user_name || 'Contact';
+        // For each conversation, resolve the OTHER participant's display name
+        const enriched = await Promise.all(results.map(async (c) => {
+            const otherId = c.participant1_id === myId ? c.participant2_id : c.participant1_id;
 
-                return {
-                    ...c,
-                    display_name: otherName,
-                    display_avatar: c.biz_avatar || c.user_avatar || null
-                };
-            })
-        });
+            // Try biz_data first, then user_data
+            const biz = await db.prepare('SELECT bname as name, avatar_url FROM biz_data WHERE id = ?').bind(otherId).first();
+            if (biz) {
+                return { ...c, display_name: biz.name, display_avatar: biz.avatar_url };
+            }
+            const user = await db.prepare("SELECT firstname || ' ' || lastname as name, avatar_url FROM user_data WHERE id = ?").bind(otherId).first();
+            return { ...c, display_name: user?.name || 'User', display_avatar: user?.avatar_url || null };
+        }));
+
+        return json({ user_id: myId, conversations: enriched });
 
     } catch (e) {
         return json({ message: 'Internal server error', error: e.message }, { status: 500 });
     }
 }
 
-// POST: Start a new conversation
+// POST: Start a new conversation (or find existing)
 export async function POST({ request, platform, locals }) {
     try {
         if (!locals.user) return json({ message: 'Unauthorized' }, { status: 401 });
@@ -56,21 +51,21 @@ export async function POST({ request, platform, locals }) {
 
         if (!recipient_id) return json({ message: 'Recipient ID required' }, { status: 400 });
 
-        // 1. Check if conversation already exists for this reference (e.g., specific requirement)
-        let con = await db.prepare(`
+        // Check if conversation already exists between these two participants
+        const existing = await db.prepare(`
             SELECT id FROM conversations 
             WHERE (participant1_id = ? AND participant2_id = ?) 
                OR (participant1_id = ? AND participant2_id = ?)
         `).bind(myId, recipient_id, recipient_id, myId).first();
 
-        if (con) return json({ id: con.id, message: 'Existing conversation found' });
+        if (existing) return json({ id: existing.id, message: 'Existing conversation found' });
 
-        // 2. Create new conversation
+        // Create new
         const id = 'con_' + ulid();
         await db.prepare(`
-            INSERT INTO conversations (id, participant1_id, participant2_id, type, reference_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-        `).bind(id, myId, recipient_id, type, reference_id || null).run();
+            INSERT INTO conversations (id, participant1_id, participant2_id, request_id, created_at, last_message_at)
+            VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `).bind(id, myId, recipient_id, reference_id || null).run();
 
         return json({ id, message: 'Conversation started' }, { status: 201 });
 

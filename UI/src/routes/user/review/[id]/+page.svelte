@@ -1,12 +1,20 @@
 <script>
-	import { page } from '$app/stores';
-	const orderId = $page.params.id;
+	import { page } from '$app/state';
+	import { onMount } from 'svelte';
+	import { API_BASE_URL } from '$lib/helpers/config.js';
+
+	const orderId = page.params.id;
 
 	let stars = $state(0);
 	let hovered = $state(0);
 	let comment = $state('');
 	let submitted = $state(false);
+	let submitting = $state(false);
 	let tags = $state([]);
+	let errorMsg = $state('');
+
+	// Order info fetched so we know which business to review
+	let order = $state(null);
 
 	const quickTags = [
 		'Fast service',
@@ -17,14 +25,54 @@
 		'Would recommend'
 	];
 
+	onMount(async () => {
+		try {
+			const res = await fetch(`${API_BASE_URL}/api/orders/${orderId}`, { credentials: 'include' });
+			if (res.ok) {
+				const data = await res.json();
+				order = data.order || data;
+			}
+		} catch (e) {
+			console.error('Failed to load order info:', e);
+		}
+	});
+
 	function toggleTag(tag) {
 		tags = tags.includes(tag) ? tags.filter((t) => t !== tag) : [...tags, tag];
 	}
 
-	function handleSubmit(e) {
+	async function handleSubmit(e) {
 		e.preventDefault();
-		if (!stars) return;
-		submitted = true;
+		if (!stars || submitting) return;
+		submitting = true;
+		errorMsg = '';
+
+		try {
+			const reviewText = [comment, tags.length > 0 ? `Tags: ${tags.join(', ')}` : ''].filter(Boolean).join('\n');
+
+			const res = await fetch(`${API_BASE_URL}/api/reviews`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
+				body: JSON.stringify({
+					acceptance_id: orderId,
+					business_id: order?.business_id,
+					rating: stars,
+					review_text: reviewText
+				})
+			});
+
+			if (!res.ok) {
+				const data = await res.json();
+				throw new Error(data.error || data.message || 'Failed to submit review');
+			}
+
+			submitted = true;
+		} catch (err) {
+			errorMsg = err.message;
+		} finally {
+			submitting = false;
+		}
 	}
 </script>
 
@@ -46,7 +94,11 @@
 				<div class="mb-3 text-5xl">🛒</div>
 				<h2 class="text-xl font-bold">How was your experience?</h2>
 				<p class="mt-1 text-sm text-gray-500 dark:text-gray-400">
-					Order <span class="font-mono text-gray-900 dark:text-white">{orderId}</span> · Krishna Electronics
+					{#if order?.biz_name || order?.seller?.biz_name}
+						<span class="font-bold text-gray-900 dark:text-white">{order?.biz_name || order?.seller?.biz_name}</span>
+					{:else}
+						Order <span class="font-mono text-gray-900 dark:text-white">#{orderId.slice(-6)}</span>
+					{/if}
 				</p>
 			</div>
 
@@ -106,13 +158,21 @@
 					></textarea>
 				</div>
 
+				{#if errorMsg}
+					<p class="rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 p-4 text-sm font-bold text-red-500">{errorMsg}</p>
+				{/if}
+
 				<button
 					id="btn-submit-review"
 					type="submit"
-					disabled={!stars}
-					class={`w-full rounded-2xl py-4 text-lg font-bold transition-all ${stars ? 'bg-orange-500 text-white hover:bg-orange-400' : 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-600'}`}
+					disabled={!stars || submitting}
+					class={`w-full rounded-2xl py-4 text-lg font-bold transition-all ${stars && !submitting ? 'bg-orange-500 text-white hover:bg-orange-400 active:scale-95' : 'cursor-not-allowed bg-gray-200 text-gray-400 dark:bg-gray-800 dark:text-gray-600'}`}
 				>
-					Submit Review {stars ? '⭐'.repeat(stars) : ''}
+					{#if submitting}
+						Submitting...
+					{:else}
+						Submit Review {stars ? '⭐'.repeat(stars) : ''}
+					{/if}
 				</button>
 			</form>
 		{:else}
@@ -124,9 +184,9 @@
 					Your feedback helps local businesses grow and others make better choices.
 				</p>
 				<a
-					href="/user/home"
+					href="/user/quotes"
 					class="rounded-2xl bg-orange-500 px-8 py-3 font-bold text-white transition-all hover:bg-orange-400"
-					>Back to Home</a
+					>Back to My Requirements</a
 				>
 			</div>
 		{/if}

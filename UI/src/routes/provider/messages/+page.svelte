@@ -28,7 +28,7 @@
 				userName: t.display_name || 'Customer',
 				userImage: t.display_name?.[0] || '?',
 				lastMessage: 'Active Conversation',
-				timestamp: t.updated_at ? new Date(t.updated_at).toLocaleDateString() : 'Now',
+				timestamp: t.last_message_at ? new Date(t.last_message_at).toLocaleDateString() : 'Now',
 				unreadCount: 0,
 				isOnline: false
 			};

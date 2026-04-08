@@ -17,19 +17,25 @@
 
 	$effect(() => {
 		if (req && !locationReady) {
-			userLocation = { lat: req.lat, lng: req.lng };
+			const lat = parseFloat(req.lat);
+			const lng = parseFloat(req.long || req.lng);
+			if (!isNaN(lat) && !isNaN(lng)) {
+				userLocation = { lat, lng };
+			}
 		}
 	});
 	let locationReady = $state(false);
 
 	// Geoplane approximation (faster flat-earth distance in km)
-	function haversine(lat1, lng1, lat2, lng2) {
-		const R = 6371;
+	function getDistance(lat1, lng1, lat2, lng2) {
+		if (!lat1 || !lng1 || !lat2 || !lng2) return null;
+		const R = 6371; // Radius of the earth in km
 		const dLat = (lat2 - lat1) * Math.PI / 180;
 		const dLng = (lng2 - lng1) * Math.PI / 180;
 		const x = dLng * Math.cos((lat1 + lat2) * Math.PI / 360);
 		const y = dLat;
-		return R * Math.sqrt(x * x + y * y);
+		const dist = R * Math.sqrt(x * x + y * y);
+		return isNaN(dist) ? null : dist;
 	}
 
 	onMount(async () => {
@@ -42,6 +48,11 @@
 			if (reqRes && reqRes.ok) {
 				const data = await reqRes.json();
 				req = data.request || data;
+				const lat = parseFloat(req.lat);
+				const lng = parseFloat(req.long || req.lng);
+				if (!isNaN(lat) && !isNaN(lng)) {
+					userLocation = { lat, lng };
+				}
 			}
 
 			if (bizRes && bizRes.ok) {
@@ -54,8 +65,8 @@
 					rating: parseFloat(b.rating) || 0,
 					category: b.btype || b.type || b.category,
 					jobs: 0,
-					lat: b.lat,
-					lng: b.long || b.lng
+					lat: parseFloat(b.lat) || 0,
+					lng: parseFloat(b.long || b.lng) || 0
 				}));
 			}
 
@@ -148,8 +159,9 @@
 	const filteredProviders = $derived(
 		allProviders.map(p => ({
 			...p,
-			distance: Math.round(haversine(userLocation.lat, userLocation.lng, p.lat, p.lng) * 10) / 10
+			distance: getDistance(userLocation.lat, userLocation.lng, p.lat, p.lng)
 		})).filter(p => {
+			if (p.distance === null) return false;
 			if (!globalSearch && p.distance > distance) return false;
 			if (rating > 0 && p.rating < rating) return false;
 			if (categoryPath.length > 0) {
@@ -177,15 +189,30 @@
 		}
 	}
 
-	function sendRequirement() {
+	async function sendRequirement() {
 		if (selectedProviders.size === 0) return;
 		
 		isNotifying = true;
 		
+		try {
+			// Update the request with the selected target business IDs
+			if (reqId) {
+				await fetch(`${API_BASE_URL}/api/requests/${reqId}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					credentials: 'include',
+					body: JSON.stringify({ target_business_ids: Array.from(selectedProviders) })
+				});
+			}
+		} catch(e) {
+			console.error('Failed to update target businesses:', e);
+		}
+		
 		setTimeout(() => {
 			window.location.href = '/user/quotes';
-		}, 3000);
+		}, 2500);
 	}
+
 
 	// Map markers derived from filtered providers
 	const mapMarkers = $derived([
@@ -373,7 +400,7 @@
 								
 								<div class="text-right">
 									<p class="text-sm font-bold text-yellow-500 tracking-wide flex justify-end gap-1"><span class="text-yellow-500 drop-shadow-sm">⭐</span> {p.rating}</p>
-									<p class="text-xs font-semibold text-gray-500 dark:text-gray-400 mt-0.5">📍 {p.distance} km</p>
+									<p class="text-xs font-semibold text-gray-500 dark:text-gray-400 mt-0.5">📍 {p.distance ? `${Math.round(p.distance * 10) / 10} km` : '—'}</p>
 								</div>
 							</div>
 

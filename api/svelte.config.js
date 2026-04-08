@@ -9,8 +9,8 @@ const config = {
 			trustedOrigins: [
 				'http://localhost:5173',
 				'https://localhost:5173',
-				'http://192.168.0.165:5173',
-				'https://192.168.0.165:5173'
+				'http://10.15.86.118:5173',
+				'https://10.15.86.118:5173'
 			]
 		}
 	},

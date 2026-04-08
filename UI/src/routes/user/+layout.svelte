@@ -98,7 +98,8 @@
 		{ href: '/user/home',             icon: 'mdi:home',            label: 'Home' },
 		{ href: '/user/search',           icon: 'mdi:magnify',         label: 'Search' },
 		{ href: '/user/post-requirement', icon: 'mdi:clipboard-text',  label: 'Post' },
-		{ href: '/user/quotes',           icon: 'mdi:chat',            label: 'Quotes' }
+		{ href: '/user/messages',         icon: 'mdi:chat-processing', label: 'Messages' },
+		{ href: '/user/quotes',           icon: 'mdi:file-document-outline', label: 'Quotes' }
 	];
 
 	const moreItems = [

@@ -13,7 +13,7 @@
 			const res = await fetch(`${API_BASE_URL}/api/requests`, { credentials: 'include' });
 			if (!res.ok) throw new Error('Failed to load requirements');
 			const data = await res.json();
-			requirements = data.requests || [];
+			requirements = Array.isArray(data) ? data : (data.requests || data.data || []);
 		} catch (err) {
 			errorMsg = err.message;
 		} finally {

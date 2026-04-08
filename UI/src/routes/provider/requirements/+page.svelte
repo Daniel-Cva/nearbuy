@@ -1,25 +1,25 @@
 <script>
 	import { onMount } from 'svelte';
 	import { API_BASE_URL } from '$lib/helpers/config.js';
-	import { getCurrentProfile } from '$lib/stores/auth.svelte.js';
+	import { getCurrentProfile, getCurrentBusinessId } from '$lib/stores/auth.svelte.js';
 	import Icon from '@iconify/svelte';
 
 	let rawRequirements = $state([]);
 	let loading = $state(true);
 	let errorMsg = $state('');
-    let profile = $derived(getCurrentProfile());
-    let bizId = $derived(profile?.biz_id);
+	let profile = $derived(getCurrentProfile());
+	let bizId = $derived(getCurrentBusinessId());
 
 	onMount(async () => {
-        // Wait for profile if not loaded
+        // Wait for auth to settle
         let attempts = 0;
         while (!bizId && attempts < 10) {
-            await new Promise(r => setTimeout(r, 200));
+            await new Promise(r => setTimeout(r, 300));
             attempts++;
         }
 
         if (!bizId) {
-            errorMsg = "Business ID not found. Please log in again.";
+            errorMsg = "Business ID not found in profile. Please ensure you are logged in as a business.";
             loading = false;
             return;
         }
@@ -71,19 +71,24 @@
             </div>
 		{:else}
             {#each rawRequirements as req}
+                {@const desc = typeof req.description === 'string' ? JSON.parse(req.description) : (req.description || {})}
                 <a
-                    href={`/provider/requirements/${req.request_id}`}
+                    href={`/provider/requirements/${req.id}`}
                     class="block rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-gray-900 p-5 shadow-sm transition-all hover:border-orange-500/50 hover:-translate-y-1 group"
                 >
                     <div class="flex items-start justify-between gap-3">
                         <div class="flex-1">
                             <div class="mb-2 flex items-center gap-2">
-                                <span class="rounded-full bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">{req.main_category || 'General'}</span>
+                                <span class="rounded-full bg-orange-100 text-orange-700 dark:bg-orange-950/40 dark:text-orange-400 px-2 py-0.5 text-[10px] font-black uppercase tracking-wider">
+                                    {(Array.isArray(req.category) ? req.category[0] : req.category) || 'General'}
+                                </span>
                                 <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest">{formatDate(req.created_at)}</span>
                             </div>
-                            <h3 class="font-black text-gray-900 dark:text-white text-lg leading-tight group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">Requirement #{req.request_id.slice(-6)}</h3>
+                            <h3 class="font-black text-gray-900 dark:text-white text-lg leading-tight group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors">
+                                {desc.title || `Requirement #${req.id.slice(-6)}`}
+                            </h3>
                             <p class="mt-1 text-sm font-medium text-gray-500 dark:text-gray-400">
-                                Location: {req.city}, {req.district}
+                                Location: {req.city || 'Nearby'}, {req.district || ''}
                             </p>
                         </div>
                         <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gray-50 text-gray-400 group-hover:bg-orange-50 group-hover:text-orange-500 dark:bg-gray-800 dark:group-hover:bg-gray-700">

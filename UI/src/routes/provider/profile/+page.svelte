@@ -6,6 +6,7 @@
 	import { getCurrentProfile } from '$lib/stores/auth.svelte.js';
 
 	let business  = $state(null);
+	let profile   = $state(null);
 	let loading   = $state(true);
 	let saving    = $state(false);
 	let uploading = $state(false);
@@ -219,25 +220,26 @@
 
 		<!-- Business Profile -->
 		{#if business}
-			<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 shadow-sm relative overflow-hidden">
-				<div class="absolute top-0 right-0 p-4 opacity-10">
+			<a href="/business/{business.id}" class="group block bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 shadow-sm relative overflow-hidden transition-all hover:border-orange-500 hover:shadow-md active:scale-[0.99]">
+				<div class="absolute top-0 right-0 p-4 opacity-10 transition-transform group-hover:scale-110 group-hover:rotate-12 group-hover:opacity-20">
 					<Icon icon="mdi:store-outline" width="80" />
 				</div>
 				<h3 class="font-bold text-orange-600 dark:text-orange-500 flex items-center gap-2 border-b border-gray-100 dark:border-gray-800 pb-2">
 					<Icon icon="mdi:storefront-outline" width="16" /> Business Information
+					<span class="ml-auto text-[10px] font-bold uppercase tracking-widest text-gray-400 group-hover:text-orange-500 transition-colors flex items-center gap-1">View Shop <Icon icon="mdi:open-in-new" width="12" /></span>
 				</h3>
 				
 				<div class="space-y-4">
 					<div class="flex items-start gap-4">
-						<div class="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0">
+						<div class="w-12 h-12 rounded-xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center shrink-0 overflow-hidden border border-gray-200 dark:border-gray-700">
 							{#if business.avatar_url}
-								<img src={toDisplayUrl(business.avatar_url)} alt="Biz" class="w-full h-full object-cover rounded-xl" />
+								<img src={toDisplayUrl(business.avatar_url)} alt="Biz" class="w-full h-full object-cover" />
 							{:else}
 								<Icon icon="mdi:briefcase-outline" class="text-gray-400" width="24" />
 							{/if}
 						</div>
 						<div class="flex-1 min-w-0">
-							<h4 class="font-black text-gray-900 dark:text-white truncate">{business.bname}</h4>
+							<h4 class="font-black text-gray-900 dark:text-white truncate group-hover:text-orange-600 transition-colors">{business.bname}</h4>
 							<p class="text-[10px] font-bold uppercase tracking-widest text-orange-500">{business.category}</p>
 						</div>
 					</div>
@@ -255,7 +257,7 @@
 
 					<div>
 						<p class="text-[9px] font-black uppercase tracking-widest text-gray-400 mb-1">Full Address</p>
-						<p class="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-800/50 italic">
+						<p class="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800/50 p-3 rounded-xl border border-gray-100 dark:border-gray-800/50 italic line-clamp-2">
 							{business.address || 'No address provided.'}
 						</p>
 					</div>
@@ -265,7 +267,7 @@
 						<span class="text-[10px] font-bold uppercase tracking-widest text-gray-500">Business Status: {business.status || 'Offline'}</span>
 					</div>
 				</div>
-			</div>
+			</a>
 		{/if}
 
 		<!-- Collab Feature -->
@@ -312,7 +314,7 @@
 					</div>
 				{:else}
 					<div class="font-medium text-gray-800 dark:text-gray-200 bg-gray-50 dark:bg-gray-800/50 px-4 py-3 rounded-xl border border-gray-100 dark:border-gray-700/50">
-						{profile?.mobile ?? profile?.phone ? `+91 ${profile?.mobile ?? profile?.phone}` : '—'}
+						{profile?.phone ?? profile?.mobile ? `+91 ${profile?.phone ?? profile?.mobile}` : '—'}
 					</div>
 				{/if}
 			</div>

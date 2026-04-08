@@ -6,18 +6,23 @@
 	import { toDisplayUrl } from '$lib/helpers/upload.js';
 
 	let items = $state([]);
+	let businesses = $state([]);
 	let loading = $state(true);
 	let showNearbyMap = $state(false);
+	let selectedBiz = $state(null);
 	
 	let userLoc = $state({
 		pincode: '',
 		lat: null,
 		lng: null,
-		city: 'Detecting location...'
+		city: 'Detecting location...',
+		radius: 50 // Default 50km
 	});
 
 	let selectedCategory = $state('All');
 	let productCategories = $state(['All']);
+
+	let userName = $state('User');
 
 	async function fetchUserLocation() {
 		try {
@@ -26,7 +31,9 @@
 			if (res.ok) {
 				const data = await res.json();
 				if (data.profile) {
-					userLoc.pincode = data.profile.pincode;
+					userName = data.profile.firstname + ' ' + (data.profile.lastname || '');
+					// Pincode clean-up: convert "609309.0" -> "609309"
+					userLoc.pincode = data.profile.pincode ? String(data.profile.pincode).split('.')[0] : '';
 					userLoc.city = data.profile.city || 'Unknown Location';
 				}
 			}
@@ -67,23 +74,33 @@
 	async function fetchNearbyItems() {
 		loading = true;
 		try {
-			let url = new URL(`${API_BASE_URL}/api/items`);
-			if (selectedCategory !== 'All') url.searchParams.set('category', selectedCategory);
+			// 1. Fetch Items
+			let itemUrl = new URL(`${API_BASE_URL}/api/items`);
+			if (selectedCategory !== 'All') itemUrl.searchParams.set('category', selectedCategory);
 			
 			if (userLoc.lat && userLoc.lng) {
-				url.searchParams.set('lat', userLoc.lat);
-				url.searchParams.set('long', userLoc.lng);
-				url.searchParams.set('radius', '15'); // 15km radius
+				itemUrl.searchParams.set('lat', userLoc.lat);
+				itemUrl.searchParams.set('long', userLoc.lng);
+				itemUrl.searchParams.set('radius', userLoc.radius);
 			} else if (userLoc.pincode) {
-				url.searchParams.set('pincode', userLoc.pincode);
+				itemUrl.searchParams.set('pincode', userLoc.pincode);
 			}
 
-			const res = await fetch(url.toString(), { credentials: 'include' });
-			if (res.ok) {
-				items = await res.json();
+			const iRes = await fetch(itemUrl.toString(), { credentials: 'include' });
+			if (iRes.ok) items = await iRes.json();
+
+			// 2. Fetch Businesses for the Map
+			let bizUrl = new URL(`${API_BASE_URL}/api/businesses`);
+			if (userLoc.lat && userLoc.lng) {
+				bizUrl.searchParams.set('lat', userLoc.lat);
+				bizUrl.searchParams.set('long', userLoc.lng);
+				bizUrl.searchParams.set('radius', userLoc.radius);
 			}
+			const bRes = await fetch(bizUrl.toString(), { credentials: 'include' });
+			if (bRes.ok) businesses = await bRes.json();
+
 		} catch (err) {
-			console.error('Failed to fetch items:', err);
+			console.error('Failed to fetch data:', err);
 		} finally {
 			loading = false;
 		}
@@ -104,6 +121,59 @@
 			return toDisplayUrl(imgs[0]) || 'https://images.unsplash.com/photo-1553413077-190dd305871c?w=400&q=80';
 		} catch {
 			return 'https://images.unsplash.com/photo-1553413077-190dd305871c?w=400&q=80';
+		}
+	}
+	let interestModal = $state({
+		show: false,
+		step: 1, // 1: Confirm, 2: Success/Details
+		item: null,
+		biz: null,
+		loading: false
+	});
+
+	function initDirectInterest(item) {
+		interestModal.item = item;
+		interestModal.show = true;
+		interestModal.step = 1;
+	}
+
+	async function confirmInterest() {
+		interestModal.loading = true;
+		try {
+			const res = await fetch(`${API_BASE_URL}/api/requests`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					item_id: interestModal.item.id,
+					target_business_ids: [interestModal.item.business_id],
+					title: `Direct Order: ${interestModal.item.product_name} (from ${userName})`,
+					category: [interestModal.item.category],
+					lat: userLoc.lat,
+					long: userLoc.lng,
+					city: userLoc.city,
+					pincode: userLoc.pincode,
+					address: 'Order via Direct Interest'
+				}),
+				credentials: 'include'
+			});
+
+			if (res.ok) {
+				// Fetch business details to show in step 2
+				const bRes = await fetch(`${API_BASE_URL}/api/businesses/${interestModal.item.business_id}`);
+				if (bRes.ok) {
+					interestModal.biz = await bRes.json();
+					interestModal.step = 2;
+				} else {
+					alert("Interest recorded! Check your messages.");
+					interestModal.show = false;
+				}
+			} else {
+				alert("Failed to send interest. Please try again.");
+			}
+		} catch (err) {
+			console.error(err);
+		} finally {
+			interestModal.loading = false;
 		}
 	}
 </script>
@@ -144,14 +214,29 @@
 				onclick={() => showNearbyMap = !showNearbyMap}
 				class="w-full flex items-center justify-between rounded-2xl border border-gray-200 bg-white px-4 py-3 shadow-sm transition-all hover:border-orange-300 dark:border-gray-800 dark:bg-gray-900 dark:hover:border-orange-500/50"
 			>
-				<div class="flex flex-col items-start translate-y-[-1px]">
+				<div class="flex flex-col items-start -translate-y-px">
 					<span class="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
 						<Icon icon="mdi:map-marker-radius" class="text-orange-500" /> Discover Nearby
 					</span>
-					<span class="text-[10px] text-gray-400 ml-6">Based on {userLoc.lat ? 'GPS' : 'Pincode'}</span>
+					<span class="text-[10px] text-gray-400 ml-6">Range: {userLoc.radius} km • Based on {userLoc.lat ? 'GPS' : 'Pincode'}</span>
 				</div>
 				<span class="text-xs font-bold text-orange-500">{showNearbyMap ? 'Hide Map' : 'Show Map'}</span>
 			</button>
+
+			{#if showNearbyMap}
+				<div class="mt-4 px-2 space-y-4">
+					<div class="flex items-center gap-4">
+						<label for="radius-range" class="text-[10px] font-black uppercase tracking-widest text-gray-400 shrink-0">Search Radius ({userLoc.radius}km)</label>
+						<input 
+							id="radius-range"
+							type="range" min="1" max="150" step="5" 
+							bind:value={userLoc.radius}
+							onchange={fetchNearbyItems}
+							class="flex-1 h-1.5 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-orange-500 dark:bg-gray-800"
+						/>
+					</div>
+				</div>
+			{/if}
 			
 			{#if showNearbyMap}
 				<div class="mt-2 animate-in fade-in slide-in-from-top-4 duration-300 rounded-2xl border border-gray-200 bg-white overflow-hidden shadow-sm dark:border-gray-800 dark:bg-gray-900">
@@ -162,18 +247,20 @@
 						showGeolocate={true}
 						markers={[
 							...(userLoc.lat ? [{ id: 'user', type: 'user', lat: userLoc.lat, lng: userLoc.lng, popup: '<b>📍 Your Location</b>' }] : []),
-							...items.map(item => ({
-								id: item.id,
-								businessId: item.business_id,
-								lat: item.biz_lat,
-								lng: item.biz_long,
-								label: item.product_name[0],
-								popup: `<b>${item.product_name}</b><br/><span style="color:#888">${item.business_name}</span>`
+							...businesses.map(biz => ({
+								id: biz.id,
+								businessId: biz.id,
+								lat: biz.lat,
+								lng: biz.long,
+								label: '🏢',
+								type: 'business',
+								popup: `<b>${biz.bname}</b><br/><span style="color:#888">${biz.city || ''}</span>`
 							}))
 						]}
 						onMarkerClick={(marker) => {
 							if (marker.id && marker.id !== 'user') {
-								window.location.href = `/user/item/${marker.id}`;
+								const biz = businesses.find(b => b.id === marker.id);
+								if (biz) selectedBiz = biz;
 							}
 						}}
 					/>
@@ -215,34 +302,49 @@
 			{:else}
 				<div class="grid grid-cols-2 gap-4">
 					{#each items as item}
-						<a 
-							href={`/user/item/${item.id}`} 
-							class="group bg-white dark:bg-gray-900 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-800 transition-all hover:shadow-xl hover:shadow-gray-200/50 dark:hover:shadow-none hover:-translate-y-1"
-						>
-							<div class="aspect-square relative overflow-hidden">
-								<img 
-									src={getFirstImage(item.image)} 
-									alt={item.product_name} 
-									class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
-								/>
-								<div class="absolute top-2 left-2 flex flex-col gap-1">
-									<span class="bg-black/60 backdrop-blur-md text-[8px] text-white font-black px-2 py-0.5 rounded-full uppercase tracking-widest leading-relaxed">
-										{item.item_type}
-									</span>
+						<div class="group relative bg-white dark:bg-gray-900 rounded-2xl overflow-hidden border border-gray-100 dark:border-gray-800 transition-all hover:shadow-xl hover:shadow-gray-200/50 dark:hover:shadow-none">
+							<a 
+								href={`/user/item/${item.id}`} 
+								class="block"
+							>
+								<div class="aspect-square relative overflow-hidden">
+									<img 
+										src={getFirstImage(item.image)} 
+										alt={item.product_name} 
+										class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" 
+									/>
+									<div class="absolute top-2 left-2 flex flex-col gap-1">
+										<span class="bg-black/60 backdrop-blur-md text-[8px] text-white font-black px-2 py-0.5 rounded-full uppercase tracking-widest leading-relaxed">
+											{item.item_type}
+										</span>
+									</div>
 								</div>
-							</div>
-							<div class="p-3">
-								<h3 class="text-sm font-black text-gray-900 dark:text-white truncate">{item.product_name}</h3>
-								<div class="flex items-center gap-1 mt-1">
-									<Icon icon="mdi:store" class="text-xs text-orange-500" />
-									<span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 truncate">{item.business_name}</span>
+								<div class="p-3">
+									<h3 class="text-sm font-black text-gray-900 dark:text-white truncate">{item.product_name}</h3>
+									<div class="flex items-center gap-1 mt-1">
+										<Icon icon="mdi:store" class="text-xs text-orange-500" />
+										<span class="text-[10px] font-bold text-gray-400 dark:text-gray-500 truncate">{item.business_name}</span>
+									</div>
+									<div class="mt-3 flex items-center justify-between border-t border-gray-50 dark:border-gray-800 pt-2">
+										<span class="text-[9px] font-bold text-orange-500 uppercase tracking-widest">Available</span>
+										<span class="text-[9px] font-mono text-gray-400 italic">#{item.biz_pincode}</span>
+									</div>
 								</div>
-								<div class="mt-3 flex items-center justify-between border-t border-gray-50 dark:border-gray-800 pt-2">
-									<span class="text-[9px] font-bold text-orange-500 uppercase tracking-widest">Available</span>
-									<span class="text-[9px] font-mono text-gray-400 italic">#{item.biz_pincode}</span>
-								</div>
-							</div>
-						</a>
+							</a>
+							<!-- Direct Interest Button -->
+							<button 
+								onclick={(e) => {
+									e.preventDefault();
+									e.stopPropagation();
+									initDirectInterest(item);
+								}}
+								class="absolute bottom-11 right-3 h-10 w-10 flex items-center justify-center rounded-xl bg-orange-500 text-white shadow-lg shadow-orange-500/30 transform transition-all active:scale-90 hover:scale-110 group-hover:translate-y-[-4px]"
+								title="I'm Interested"
+								aria-label="I'm Interested"
+							>
+								<Icon icon="mdi:heart-flash" width="20" />
+							</button>
+						</div>
 					{/each}
 				</div>
 			{/if}
@@ -265,6 +367,163 @@
 		</a>
 
 	</div>
+
+
+
+	{#if interestModal.show}
+		<div class="fixed inset-0 z-50 flex items-end justify-center bg-black/60 p-0 backdrop-blur-sm animate-in fade-in duration-300 md:items-center md:p-4">
+			<button class="absolute inset-0 cursor-default" onclick={() => interestModal.show = false} aria-label="Dismiss Modal"></button>
+			
+			<div class="relative w-full max-w-lg rounded-t-[40px] bg-white p-8 shadow-2xl animate-in slide-in-from-bottom-full duration-500 dark:bg-gray-900 md:rounded-[40px]">
+				<!-- Step 1: Confirmation -->
+				{#if interestModal.step === 1}
+					<div class="text-center">
+						<div class="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-orange-100 dark:bg-orange-500/10">
+							<Icon icon="mdi:heart-flash" class="text-4xl text-orange-500 animate-pulse" />
+						</div>
+						<h2 class="text-2xl font-black text-gray-900 dark:text-white">Confirm Interest</h2>
+						<p class="mt-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+							We'll share your profile and address with <span class="text-orange-500 font-bold">{interestModal.item?.business_name}</span> so they can contact you regarding <span class="font-bold">"{interestModal.item?.product_name}"</span>.
+						</p>
+
+						<div class="mt-8 flex gap-3">
+							<button 
+								onclick={() => interestModal.show = false}
+								class="flex-1 rounded-2xl border border-gray-200 py-4 text-sm font-black text-gray-400 dark:border-gray-800"
+							>
+								Cancel
+							</button>
+							<button 
+								onclick={confirmInterest}
+								disabled={interestModal.loading}
+								class="flex-1 rounded-2xl bg-orange-500 py-4 text-sm font-black text-white shadow-xl shadow-orange-500/20 active:scale-95 transition-all"
+							>
+								{interestModal.loading ? 'Processing...' : 'Yes, I\'m Interested!'}
+							</button>
+						</div>
+					</div>
+				
+				<!-- Step 2: Success & Business Details -->
+				{:else if interestModal.step === 2}
+					<div class="text-center animate-in zoom-in-95 duration-300">
+						<div class="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-green-100 dark:bg-green-500/10">
+							<Icon icon="mdi:check-decagram" class="text-4xl text-green-500" />
+						</div>
+						<h2 class="text-2xl font-black text-gray-900 dark:text-white">It's a Match!</h2>
+						<p class="mt-2 text-sm font-medium text-gray-500 dark:text-gray-400">
+							Your interest has been SHARED. You can now contact the business directly.
+						</p>
+
+						<div class="mt-8 space-y-4 text-left">
+							<div class="rounded-3xl border border-gray-100 bg-gray-50 p-6 dark:border-gray-800 dark:bg-gray-800/50">
+								<h3 class="text-xs font-black uppercase tracking-widest text-gray-400 mb-4">Merchant Contact</h3>
+								<div class="space-y-4">
+									<div class="flex items-center gap-4">
+										<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-gray-800 text-orange-500">
+											<Icon icon="mdi:store" width="20" />
+										</div>
+										<div>
+											<p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Business Name</p>
+											<p class="text-sm font-bold text-gray-900 dark:text-white">{interestModal.biz?.bname}</p>
+										</div>
+									</div>
+
+									<div class="flex items-center gap-4">
+										<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-gray-800 text-blue-500">
+											<Icon icon="mdi:phone" width="20" />
+										</div>
+										<div>
+											<p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Mobile Number</p>
+											<p class="text-sm font-bold text-gray-900 dark:text-white">{JSON.parse(interestModal.biz?.phones || '["N/A"]')[0]}</p>
+										</div>
+									</div>
+
+									<div class="flex items-center gap-4">
+										<div class="flex h-10 w-10 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-gray-800 text-red-500">
+											<Icon icon="mdi:email" width="20" />
+										</div>
+										<div>
+											<p class="text-[10px] font-black uppercase tracking-wider text-gray-400">Email Address</p>
+											<p class="text-sm font-bold text-gray-900 dark:text-white">{JSON.parse(interestModal.biz?.emails || '["N/A"]')[0]}</p>
+										</div>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<div class="mt-8 flex flex-col gap-3">
+							<button 
+								onclick={() => interestModal.show = false}
+								class="w-full rounded-2xl bg-gray-900 py-4 text-sm font-black text-white dark:bg-white dark:text-gray-900 shadow-xl shadow-gray-900/10 active:scale-95 transition-all"
+							>
+								Great, Got it!
+							</button>
+							<a 
+								href={`/user/messages`}
+								class="w-full rounded-2xl border border-gray-100 py-4 text-sm font-black text-gray-600 dark:text-gray-300 active:scale-95 transition-all"
+							>
+								Go to Chat
+							</a>
+						</div>
+					</div>
+				{/if}
+			</div>
+		</div>
+	{/if}
+
+	<!-- ─── BUSINESS DETAIL MODAL ─── -->
+	{#if selectedBiz}
+		<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+			<button class="absolute inset-0 cursor-default" onclick={() => selectedBiz = null} aria-label="Dismiss Modal"></button>
+			<div class="relative w-full max-w-sm overflow-hidden rounded-3xl bg-white shadow-2xl animate-in zoom-in-95 duration-200 dark:bg-gray-900">
+				<div class="h-24 bg-linear-to-br from-orange-400 to-orange-600"></div>
+				
+				<div class="relative -mt-12 flex flex-col items-center px-6 pb-6">
+					<div class="h-20 w-20 overflow-hidden rounded-2xl border-4 border-white bg-gray-100 shadow-lg dark:border-gray-900 dark:bg-gray-800">
+						{#if selectedBiz.avatar_url}
+							<img src={toDisplayUrl(selectedBiz.avatar_url)} alt="Biz Logo" class="h-full w-full object-cover" />
+						{:else}
+							<div class="flex h-full w-full items-center justify-center text-gray-400">
+								<Icon icon="mdi:storefront" width="40" />
+							</div>
+						{/if}
+					</div>
+
+					<h3 class="mt-3 text-xl font-black text-gray-900 dark:text-white text-center">{selectedBiz.bname}</h3>
+					<p class="text-[10px] font-bold uppercase tracking-widest text-orange-500">{selectedBiz.btype || 'Local Shop'}</p>
+					
+					<div class="mt-4 w-full space-y-3">
+						<div class="flex items-start gap-2 bg-gray-50 p-3 rounded-2xl dark:bg-gray-800/50">
+							<Icon icon="mdi:map-marker" class="mt-0.5 text-gray-400" />
+							<p class="text-xs text-gray-600 dark:text-gray-400 leading-relaxed font-medium">
+								{selectedBiz.address || 'Address not provided.'}<br/>
+								<span class="font-bold">{selectedBiz.city}, {selectedBiz.pincode}</span>
+							</p>
+						</div>
+
+						{#if selectedBiz.about}
+							<p class="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 italic px-2">"{selectedBiz.about}"</p>
+						{/if}
+					</div>
+
+					<div class="mt-6 flex w-full gap-3">
+						<button 
+							onclick={() => selectedBiz = null}
+							class="flex-1 rounded-2xl border border-gray-200 py-3 text-xs font-bold text-gray-500 hover:bg-gray-50 dark:border-gray-800 dark:hover:bg-gray-800"
+						>
+							Dismiss
+						</button>
+						<a 
+							href={`/business/${selectedBiz.id}`}
+							class="flex-1 rounded-2xl bg-orange-500 py-3 text-center text-xs font-bold text-white shadow-lg shadow-orange-500/20 transition-all hover:bg-orange-600 active:scale-95"
+						>
+							View Profile
+						</a>
+					</div>
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>
 
 <style>

@@ -22,6 +22,7 @@ export async function GET({ platform, locals }) {
             profile = await db.prepare('SELECT id, firstname, lastname, email, phone as mobile, address, city, pincode, district, state, avatar_url, theme, interests, status, created_at FROM user_data WHERE id = ?').bind(userId).first();
             if (profile) {
                 profile.name = `${profile.firstname} ${profile.lastname}`.trim();
+                if (profile.pincode) profile.pincode = String(profile.pincode).split('.')[0];
                 try { profile.interests = profile.interests ? JSON.parse(profile.interests) : []; } catch(e) { profile.interests = []; }
             }
         } else {
@@ -32,10 +33,10 @@ export async function GET({ platform, locals }) {
 
         let business = null;
         if (profile.biz_id) {
-            // RELOADED CLEAN QUERY - NO BANNER_URL
             const bizQuery = `SELECT id, bname, btype as category, emails, phones, address, city, district, state, pincode, lat, long as lng, avatar_url, status, about, created_at FROM biz_data WHERE id = ?`;
             business = await db.prepare(bizQuery).bind(profile.biz_id).first();
             if (business) {
+                if (business.pincode) business.pincode = String(business.pincode).split('.')[0];
                 try {
                     business.emails = JSON.parse(business.emails || '[]');
                     business.phones = JSON.parse(business.phones || '[]');
@@ -47,7 +48,7 @@ export async function GET({ platform, locals }) {
         }
 
         return json({ 
-            message: 'Identity fetched (RE-LOADED CLEAN)', 
+            message: 'Identity fetched', 
             profile, 
             business,
             role: payload.role 

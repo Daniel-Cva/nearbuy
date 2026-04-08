@@ -1,11 +1,12 @@
 <script>
 	import { page } from '$app/state';
 	import { onMount } from 'svelte';
+	import Icon from '@iconify/svelte';
 	import { API_BASE_URL } from '$lib/helpers/config.js';
 	import { toDisplayUrl } from '$lib/helpers/upload.js';
 	import { getCurrentUserId } from '$lib/stores/auth.svelte.js';
 
-	const itemId = page.params.id;
+    let itemId = $derived(page.params.id);
 
 	let loading = $state(true);
 	let interested = $state(false);
@@ -13,7 +14,7 @@
 	let showShopMap = $state(false);
 	
 	let item = $state({
-		id: itemId,
+		id: '',
 		name: 'Loading...',
 		shop: 'Business Name',
 		shopId: '',
@@ -38,8 +39,10 @@
 	let carouselEl = $state(null);
 
 	onMount(async () => {
+		console.log('[ITEM PAGE] Mounting with ID:', itemId);
 		try {
 			// Fetch Item details
+			if (!itemId) throw new Error('Item ID is missing from URL');
 			const iRes = await fetch(`${API_BASE_URL}/api/items/${itemId}`, { credentials: 'include' });
 			if (iRes.ok) {
 				const i = await iRes.json();

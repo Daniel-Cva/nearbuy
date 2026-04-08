@@ -13,7 +13,7 @@ export async function handle({ event, resolve }) {
         const origin = event.request.headers.get('origin');
 		return new Response(null, {
 			headers: {
-				'Access-Control-Allow-Origin': origin || 'http://192.168.0.165:5173',
+				'Access-Control-Allow-Origin': origin || 'https://10.15.86.118:5173',
 				'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
 				'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-sveltekit-action',
                 'Access-Control-Allow-Credentials': 'true',

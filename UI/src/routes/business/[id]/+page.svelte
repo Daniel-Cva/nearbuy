@@ -3,6 +3,7 @@
     import { onMount } from 'svelte';
     import { API_BASE_URL } from '$lib/helpers/config.js';
     import Icon from '@iconify/svelte';
+    import NearBuyMap from '$lib/components/NearBuyMap.svelte';
 
     let businessId = $derived($page.params.id);
     let bizData = $state(null);
@@ -10,6 +11,16 @@
     let loading = $state(true);
     let errorMsg = $state('');
     let activeTab = $state('items'); // 'items' | 'about'
+
+    const bizMarkers = $derived(bizData && bizData.lat ? [{
+        id: bizData.id,
+        lat: bizData.lat,
+        lng: bizData.long,
+        label: '📍',
+        name: bizData.bname,
+        type: 'business',
+        popup: `<div class="p-1"><p class="font-bold text-sm">${bizData.bname}</p><p class="text-[10px] text-gray-500">${bizData.address}</p></div>`
+    }] : []);
 
     onMount(async () => {
         try {
@@ -154,16 +165,33 @@
                             </p>
                         </div>
                         <div class="space-y-6">
-                            <div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-                                <h3 class="text-sm font-black mb-3 text-gray-500 dark:text-gray-400 uppercase tracking-wider">Location</h3>
-                                <p class="text-sm font-medium flex items-start gap-2">
-                                    <Icon icon="mdi:map-marker" class="text-orange-500 mt-0.5 shrink-0" />
-                                    <span>
-                                        {#if bizData.address}{bizData.address}, <br/>{/if}
-                                        {bizData.city}, {bizData.district}<br/>
-                                        {bizData.state}
-                                    </span>
-                                </p>
+                            <div class="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-800 dark:bg-gray-900 overflow-hidden">
+                                <div class="p-6">
+                                    <h3 class="text-sm font-black mb-3 text-gray-500 dark:text-gray-400 uppercase tracking-wider">Location</h3>
+                                    <p class="text-sm font-medium flex items-start gap-2 mb-4">
+                                        <Icon icon="mdi:map-marker" class="text-orange-500 mt-0.5 shrink-0" />
+                                        <span>
+                                            {#if bizData.address}{bizData.address}, <br/>{/if}
+                                            {bizData.city}, {bizData.district}<br/>
+                                            {bizData.state}
+                                        </span>
+                                    </p>
+                                </div>
+                                <div class="h-64 bg-gray-100 dark:bg-gray-800 border-t border-gray-100 dark:border-gray-800">
+                                    {#if bizData.lat}
+                                        <NearBuyMap 
+                                            center={[bizData.long, bizData.lat]} 
+                                            zoom={14} 
+                                            markers={bizMarkers} 
+                                            height="100%" 
+                                            interactive={false}
+                                        />
+                                    {:else}
+                                        <div class="flex h-full items-center justify-center text-gray-400 gap-2">
+                                            <Icon icon="mdi:map-off" /> Geolocation not available
+                                        </div>
+                                    {/if}
+                                </div>
                             </div>
                             <div class="rounded-2xl border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
                                 <h3 class="text-sm font-black mb-3 text-gray-500 dark:text-gray-400 uppercase tracking-wider">Business Type</h3>

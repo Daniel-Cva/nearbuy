@@ -44,27 +44,25 @@ export async function GET({ url, platform }) {
         const isNearbyOnly = (!category || category === 'All');
 
         if (!isNaN(lat) && !isNaN(long)) {
+            // Approx: 1 deg lat = 111km, 1 deg lon = 111km * cos(lat)
             const latDelta = radius / 111;
-            const longDelta = radius / (111 * Math.cos(lat * Math.PI / 180));
+            const lonDelta = radius / (111 * Math.cos(lat * Math.PI / 180));
             
-            if (isNearbyOnly) {
-                // Strict proximity for 'All' view
-                query += ' AND b.lat BETWEEN ? AND ? AND b.long BETWEEN ? AND ?';
-                params.push(lat - latDelta, lat + latDelta, long - longDelta, long + longDelta);
-            } else {
-                // Soft proximity for Specific Categories: Show all, but we can sort or mark later.
-                // We DON'T filter out far items here to avoid an empty screen.
-            }
+            // Bounding box filter for index usage
+            query += ' AND b.lat BETWEEN ? AND ? AND b.long BETWEEN ? AND ?';
+            params.push(lat - latDelta, lat + latDelta, long - lonDelta, long + lonDelta);
+
+            // True Euclidean-ish distance filter (squared for performance)
+            // ((lat1-lat2)^2 + (lon1-lon2)^2) < approx_radius_sq
+            // We use this as a secondary filter post-bounding box
         } else if (pincode && isNearbyOnly) {
-            // Strict pincode for 'All' view
             query += ' AND b.pincode = ?';
             params.push(pincode);
         }
 
-        // Proximity Ordering: Nearby objects first (if coordinates available)
+        // Proximity Ordering
         if (!isNaN(lat) && !isNaN(long)) {
             query += ` ORDER BY 
-                (b.lat IS NULL) ASC,
                 ( (b.lat - ?) * (b.lat - ?) + (b.long - ?) * (b.long - ?) ) ASC, 
                 i.created_at DESC`;
             params.push(lat, lat, long, long);

@@ -62,17 +62,16 @@
 		errorMsg = '';
 		
 		try {
-			// Payload must match Unified /api/quotes endpoint
-			const payload = {
+		const payload = {
 				request_id: reqId,
-				product_info: {
+				price: price.trim(),
+				product_info: selectedItemId ? {
 					item_id: selectedItemId,
 					item_name: items.find(i => i.id === selectedItemId)?.product_name || 'Service',
-					price: Number(price),
-					note: note,
-					availability: availability || 'Immediately',
 					image: items.find(i => i.id === selectedItemId)?.image || null
-				}
+				} : null,
+				note: note,
+				delivery_time: availability || 'Immediately'
 			};
 
 			const res = await fetch(`${API_BASE_URL}/api/quotes`, {
@@ -156,18 +155,15 @@
 				<!-- Pricing & Info -->
 				<div class="grid grid-cols-1 gap-6 md:grid-cols-2">
 					<div>
-						<label class="mb-2 block text-[10px] font-black uppercase tracking-widest text-gray-400" for="quote-price">Your Price (₹)</label>
-						<div class="relative">
-							<span class="absolute left-4 top-1/2 -translate-y-1/2 text-lg font-black text-gray-900/40">₹</span>
-							<input
-								id="quote-price"
-								type="number"
-								bind:value={price}
-								placeholder="8999"
-								class="w-full rounded-2xl border border-gray-300 bg-white pl-10 pr-4 py-3 text-lg font-black text-gray-900 transition-all focus:border-orange-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm"
-								required
-							/>
-						</div>
+						<label class="mb-2 block text-[10px] font-black uppercase tracking-widest text-gray-400" for="quote-price">Your Price (₹ or text)</label>
+						<input
+							id="quote-price"
+							type="text"
+							bind:value={price}
+							placeholder="e.g. 8999 or ₹500/hr"
+							class="w-full rounded-2xl border border-gray-300 bg-white px-4 py-3 text-lg font-black text-gray-900 transition-all focus:border-orange-500 focus:outline-none dark:border-gray-700 dark:bg-gray-900 dark:text-white shadow-sm"
+							required
+						/>
 					</div>
 
 					<div>

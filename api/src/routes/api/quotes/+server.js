@@ -37,8 +37,7 @@ export async function GET({ url, platform, locals }) {
         return json({ 
             quotes: results.map(q => ({ 
                 ...q, 
-                product_info: JSON.parse(q.product_info || '{}'),
-                nos: JSON.parse(q.nos || '{}') // for compatibility
+                product_info: q.product_info ? JSON.parse(q.product_info) : null,
             })) 
         });
     } catch(err) { 
@@ -52,19 +51,33 @@ export async function POST({ request, platform, locals }) {
         
         const db = platform.env.DB;
         const body = await request.json();
-        const { requestId, product_info, price, delivery_time } = body;
+        const requestId = body.requestId || body.request_id;
+        const { product_info, price, delivery_time, note } = body;
 
-        if (!requestId || !product_info) return json({ message: 'Request ID and product info required' }, { status: 400 });
+        if (!requestId) return json({ message: 'Request ID is required' }, { status: 400 });
+
+        // price is text-compatible (e.g. "₹500/hr" or "8999")
+        const finalPrice = price != null ? String(price) : (product_info?.price != null ? String(product_info.price) : null);
+        if (!finalPrice) return json({ message: 'Price is required' }, { status: 400 });
 
         const id = 'qte_' + ulid();
 
+        // product_info is optional (null for pure service quotes)
+        const productInfoStr = product_info ? JSON.stringify({ 
+            ...product_info, 
+            price: finalPrice, 
+            delivery_time: delivery_time || product_info?.delivery_time,
+            notes: note || product_info?.notes || product_info?.note
+        }) : null;
+
+        const biz = await db.prepare('SELECT bname FROM biz_data WHERE id = ?').bind(locals.user.bizId).first();
+
         await db.prepare(`
             INSERT INTO quotes (
-                id, request_id, business_id, product_info, status, created_at
-            ) VALUES (?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)
+                id, request_id, business_id, business_name, price, product_info, status, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, 'pending', CURRENT_TIMESTAMP)
         `).bind(
-            id, requestId, locals.user.bizId, 
-            JSON.stringify({ ...product_info, price, delivery_time })
+            id, requestId, locals.user.bizId, biz?.bname || null, finalPrice, productInfoStr
         ).run();
 
         // Notify user
@@ -72,7 +85,7 @@ export async function POST({ request, platform, locals }) {
         if (req) {
             const desc = JSON.parse(req.description || '{}');
             await db.prepare('INSERT INTO notifications (id, user_id, type, reference_id, message) VALUES (?, ?, ?, ?, ?)')
-                .bind('not_' + ulid(), req.user_id, 'quote', requestId, `New quote received for your request: ${desc.title || 'Requirement'}`);
+                .bind('not_' + ulid(), req.user_id, 'quote', requestId, `New quote received for: ${desc.title || 'Your Requirement'}`).run();
         }
 
         return json({ message: 'Quote submitted successfully', id }, { status: 201 });

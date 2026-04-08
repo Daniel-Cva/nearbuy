@@ -185,8 +185,8 @@
 		};
 	});
 
-	// Minimum zoom level to show markers (street/neighbourhood level)
-	const MARKER_MIN_ZOOM = 11;
+	// Minimum zoom level to show markers (set to 1 to show at all levels for radar search)
+	const MARKER_MIN_ZOOM = 1;
 
 	function syncMarkers(maplibregl) {
 		if (!map || !maplibregl) return;
@@ -265,14 +265,18 @@
 		const coords = [];
 		const earthRadius = 6371;
 
-		const rcClean = [Number(rc[0] || 80.2707), Number(rc[1] || 13.0827)];
-		const kmClean = Number(km || 5);
+		// Explicitly cast to numbers and provide strict fallbacks to avoid off-center or missing circles
+		const lng = Number(rc ? rc[0] : (center ? center[0] : 80.2707));
+		const lat = Number(rc ? rc[1] : (center ? center[1] : 13.0827));
+		const kmClean = Number(km || 0);
+
+		if (isNaN(lng) || isNaN(lat)) return;
 
 		for (let i = 0; i < points; i++) {
 			const angle = (i / points) * 2 * Math.PI;
-			const lat = rcClean[1] + (kmClean / earthRadius) * (180 / Math.PI) * Math.sin(angle);
-			const lng = rcClean[0] + ((kmClean / earthRadius) * (180 / Math.PI) * Math.cos(angle)) / Math.cos((rcClean[1] * Math.PI) / 180);
-			coords.push([lng, lat]);
+			const pLat = lat + (kmClean / earthRadius) * (180 / Math.PI) * Math.sin(angle);
+			const pLng = lng + ((kmClean / earthRadius) * (180 / Math.PI) * Math.cos(angle)) / Math.cos((lat * Math.PI) / 180);
+			coords.push([pLng, pLat]);
 		}
 		// Mapbox GL JS STRICTLY requires the first and last point of a polygon to be exactly identical
 		if (coords.length > 0) coords.push([...coords[0]]);

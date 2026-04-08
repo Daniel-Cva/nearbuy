@@ -11,6 +11,7 @@
     let bizId     = $derived(profile?.biz_id);
 
     let requestDetail = $state(null);
+    let existingQuote = $state(null);
 	let loading = $state(true);
 	let sending = $state(false);
 	let errorMsg = $state('');
@@ -24,7 +25,14 @@
 			const res = await fetch(`${API_BASE_URL}/api/requests/${requestId}`, { credentials: 'include' });
 			if (!res.ok) throw new Error('Requirement not found');
 			const data = await res.json();
-			requestDetail = data; // Unified API returns the object directly
+			requestDetail = data; 
+
+            // Check for existing quote from this business
+            const qRes = await fetch(`${API_BASE_URL}/api/quotes?requestId=${requestId}`, { credentials: 'include' });
+            if (qRes.ok) {
+                const qData = await qRes.json();
+                existingQuote = (qData.quotes || []).find(q => q.business_id === bizId);
+            }
 		} catch (err) {
 			errorMsg = err.message;
 		} finally {
@@ -112,41 +120,88 @@
                 </div>
 			</div>
 
-			<!-- Send Quote Form -->
-			<form onsubmit={handleSendQuote} class="rounded-2xl border border-orange-200 bg-orange-50/20 p-6 shadow-sm dark:border-orange-950/30 dark:bg-orange-950/5 space-y-4">
-				<h3 class="flex items-center gap-2 font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest text-xs px-1">
-					<Icon icon="mdi:send-variant-outline" width="16" height="16" />
-					Your Best Quote
-				</h3>
-
-				<div class="grid grid-cols-2 gap-4">
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1" for="quote-price">Price (₹)</label>
-                        <input id="quote-price" type="number" bind:value={price} required placeholder="500" 
-                            class="w-full rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 font-bold text-lg focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none" />
+			<!-- Quote Section -->
+            {#if existingQuote}
+                <div class="rounded-2xl border-2 border-green-500/20 bg-green-50/20 p-6 shadow-sm dark:border-green-950/30 dark:bg-green-950/5 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h3 class="flex items-center gap-2 font-black text-green-600 dark:text-green-400 uppercase tracking-widest text-xs">
+                            <Icon icon="mdi:check-circle-outline" width="16" height="16" />
+                            Your Quote has been Sent
+                        </h3>
+                        <span class={`rounded-full px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${existingQuote.status === 'accepted' ? 'bg-green-500 text-white' : 'bg-orange-100 text-orange-600'}`}>
+                            {existingQuote.status}
+                        </span>
                     </div>
-                    <div class="space-y-1">
-                        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1" for="quote-delivery">Delivery Days</label>
-                        <input id="quote-delivery" type="number" bind:value={deliveryDays} required placeholder="2" 
-                            class="w-full rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 font-bold text-lg focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none" />
-                    </div>
-				</div>
 
-                <div class="space-y-1">
-                    <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1" for="quote-notes">Notes to User</label>
-                    <textarea id="quote-notes" bind:value={notes} placeholder="Explain your pricing or offer..." rows="3"
-                        class="w-full rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 text-sm font-medium focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none resize-none"></textarea>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800">
+                            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Your Price</span>
+                            <span class="font-black text-lg text-green-600">₹{existingQuote.price}</span>
+                        </div>
+                        <div class="p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800">
+                            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Delivery</span>
+                            <span class="font-black text-lg">{existingQuote.product_info?.delivery_time || '—'}</span>
+                        </div>
+                    </div>
+
+                    {#if existingQuote.product_info?.notes}
+                        <div class="p-4 bg-white dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-800">
+                            <span class="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-1">Your Notes</span>
+                            <p class="text-sm font-medium text-gray-600 dark:text-gray-400 italic">"{existingQuote.product_info.notes}"</p>
+                        </div>
+                    {/if}
+
+                    {#if existingQuote.status === 'accepted'}
+                        <div class="mt-2 p-4 rounded-xl bg-green-500/10 border border-green-500/20 text-center space-y-3">
+                            <p class="text-[11px] font-black text-green-600 uppercase tracking-widest">User accepted your quote! 🎉</p>
+                            <a href="/provider/jobs" class="inline-flex items-center gap-2 rounded-xl bg-green-600 px-4 py-2 text-xs font-black text-white shadow-lg shadow-green-600/20 active:scale-95 transition-all">
+                                <Icon icon="mdi:briefcase-check" width="16" /> Go to Active Jobs
+                            </a>
+                        </div>
+                    {/if}
                 </div>
+            {:else if requestDetail.status !== 'open'}
+                <div class="rounded-2xl border border-gray-200 bg-gray-100/50 p-6 text-center dark:border-gray-800 dark:bg-gray-900/50">
+                    <Icon icon="mdi:lock-outline" width="32" height="32" class="mx-auto text-gray-400 mb-2" />
+                    <p class="text-sm font-bold text-gray-500 uppercase tracking-wide">This requirement is no longer accepting quotes.</p>
+                </div>
+            {:else}
+                <!-- Send Quote Form -->
+                <form onsubmit={handleSendQuote} class="rounded-2xl border border-orange-200 bg-orange-50/20 p-6 shadow-sm dark:border-orange-950/30 dark:bg-orange-950/5 space-y-4">
+                    <h3 class="flex items-center gap-2 font-black text-orange-600 dark:text-orange-400 uppercase tracking-widest text-xs px-1">
+                        <Icon icon="mdi:send-variant-outline" width="16" height="16" />
+                        Your Best Quote
+                    </h3>
 
-				<button
-					type="submit"
-					disabled={sending}
-					class="w-full flex items-center justify-center gap-2 rounded-xl bg-orange-500 py-4 text-sm font-black text-white shadow-xl shadow-orange-500/30 active:scale-[0.98] transition-transform disabled:opacity-50"
-				>
-					{#if sending}<Icon icon="mdi:loading" width="18" height="18" class="animate-spin" />{:else}<Icon icon="mdi:send-check" width="18" height="18" />{/if}
-					Send Quote Now
-				</button>
-			</form>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1" for="quote-price">Price (₹)</label>
+                            <input id="quote-price" type="number" bind:value={price} required placeholder="500" 
+                                class="w-full rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 font-bold text-lg focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none" />
+                        </div>
+                        <div class="space-y-1">
+                            <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1" for="quote-delivery">Delivery Days</label>
+                            <input id="quote-delivery" type="number" bind:value={deliveryDays} required placeholder="2" 
+                                class="w-full rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 font-bold text-lg focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none" />
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-[10px] font-black text-gray-400 uppercase tracking-widest ml-1" for="quote-notes">Notes to User</label>
+                        <textarea id="quote-notes" bind:value={notes} placeholder="Explain your pricing or offer..." rows="3"
+                            class="w-full rounded-xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-3 text-sm font-medium focus:border-orange-500 focus:ring-1 focus:ring-orange-500 outline-none resize-none"></textarea>
+                    </div>
+
+                    <button
+                        type="submit"
+                        disabled={sending}
+                        class="w-full flex items-center justify-center gap-2 rounded-xl bg-orange-500 py-4 text-sm font-black text-white shadow-xl shadow-orange-500/30 active:scale-[0.98] transition-transform disabled:opacity-50"
+                    >
+                        {#if sending}<Icon icon="mdi:loading" width="18" height="18" class="animate-spin" />{:else}<Icon icon="mdi:send-check" width="18" height="18" />{/if}
+                        Send Quote Now
+                    </button>
+                </form>
+            {/if}
 		{/if}
 	</div>
 </div>

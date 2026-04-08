@@ -1,5 +1,6 @@
 <script>
 	import { goto } from '$app/navigation';
+	import { setAuthFromResponse } from '$lib/stores/auth.svelte.js';
 	import { PUBLIC_API_BASE_URL } from '$env/static/public';
 
 	let loginType  = $state('email');
@@ -25,7 +26,10 @@
 			const data = await res.json();
 
 			if (res.ok) {
-				// Cookie is set — auth store will be populated via /api/me when needed
+				// Cookie is set, but also hydrate memory store for immediate use
+				if (data.user) {
+					setAuthFromResponse({ profile: data.user, userid: data.user.id }, 'user');
+				}
 				goto('/user/home');
 			} else {
 				errorMsg = data.message || 'Login failed';

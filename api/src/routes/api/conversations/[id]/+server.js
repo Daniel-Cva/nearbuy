@@ -27,6 +27,12 @@ export async function GET({ params, platform, locals }) {
             return json({ message: 'Forbidden' }, { status: 403 });
         }
 
+        // Resolve the other participant's display name
+        const otherId = con.participant1_id === myId ? con.participant2_id : con.participant1_id;
+        const biz = await db.prepare('SELECT bname as name, avatar_url FROM biz_data WHERE id = ?').bind(otherId).first();
+        const displayUser = biz || await db.prepare("SELECT firstname || ' ' || lastname as name, avatar_url FROM user_data WHERE id = ?").bind(otherId).first();
+        const enrichedCon = { ...con, display_name: displayUser?.name || 'Contact', display_avatar: displayUser?.avatar_url || null };
+
         // 2. Fetch last 50 messages
         const { results: messages } = await db.prepare(`
             SELECT * FROM messages 
@@ -36,8 +42,8 @@ export async function GET({ params, platform, locals }) {
         `).bind(conversationId).all();
 
         return json({ 
-            conversation: con, 
-            messages: messages.reverse() // Correct chronological order for UI
+            conversation: enrichedCon, 
+            messages: messages.reverse()
         });
 
     } catch (e) {
@@ -64,14 +70,15 @@ export async function POST({ params, request, platform, locals }) {
 
         const recipientId = con.participant1_id === myId ? con.participant2_id : con.participant1_id;
         const messageId = 'msg_' + ulid();
+        const payload = JSON.stringify({ text, type });
 
         // 2. Transactional send + update conversation timestamp
         await db.batch([
             db.prepare(`
-                INSERT INTO messages (id, conversation_id, sender_id, recipient_id, content, type, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            `).bind(messageId, conversationId, myId, recipientId, text, type),
-            db.prepare('UPDATE conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(conversationId)
+                INSERT INTO messages (id, conversation_id, sender_id, payload, created_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+            `).bind(messageId, conversationId, myId, payload),
+            db.prepare('UPDATE conversations SET last_message_at = CURRENT_TIMESTAMP WHERE id = ?').bind(conversationId)
         ]);
 
         return json({ message: 'Sent', id: messageId }, { status: 201 });
