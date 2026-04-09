@@ -13,7 +13,7 @@
 	"workers_dev": true,
 	"preview_urls": true,
 	"dev": {
-		"local_protocol": "https",
+		"local_protocol": "https"
 	},
 	"d1_databases": [
 		{
@@ -35,5 +35,19 @@
 			"binding": "nearbuy_storage",
 			"remote": true
 		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "COLLAB_TRACKER",
+				"class_name": "CollabTracker"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["CollabTracker"]
+		}
 	]
-}
+}

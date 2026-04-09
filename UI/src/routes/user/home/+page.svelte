@@ -275,9 +275,12 @@
             {:else}
                 <div class="text-center">
                     <div class="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl bg-green-100 text-3xl">✅</div>
-                    <h2 class="text-xl font-black text-gray-900 dark:text-white">Interested Sent!</h2>
-                    <p class="mt-2 text-xs font-medium text-gray-500">The merchant will contact you shortly with a quote. You can view all responses in your 'Quotes' tab.</p>
-                    <button onclick={() => interestModal.show = false} class="mt-8 w-full rounded-2xl bg-gray-900 py-4 text-xs font-black text-white dark:bg-white dark:text-gray-900">Close</button>
+                    <h2 class="text-xl font-black text-gray-900 dark:text-white">Interest Sent!</h2>
+                    <p class="mt-2 text-xs font-medium text-gray-500">The merchant will review and send you a <b>Quote</b>. Track it in your Quotes tab.</p>
+                    <div class="mt-8 flex flex-col gap-2">
+                        <a href="/user/quotes" onclick={() => interestModal.show = false} class="w-full rounded-2xl bg-orange-500 py-4 text-xs font-black text-white shadow-lg text-center">📋 View My Quotes</a>
+                        <button onclick={() => interestModal.show = false} class="w-full rounded-xl py-3 text-xs font-bold text-gray-400">Close</button>
+                    </div>
                 </div>
             {/if}
         </div>

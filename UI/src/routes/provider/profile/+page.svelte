@@ -271,20 +271,24 @@
 		{/if}
 
 		<!-- Collab Feature -->
-		<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 flex items-center justify-between shadow-sm">
+		<a href="/provider/founder/collab"
+			class="group flex items-center justify-between bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 shadow-sm transition-all hover:border-orange-400 hover:shadow-md active:scale-[0.99]">
 			<div class="flex items-center gap-3">
 				<div class="h-10 w-10 flex items-center justify-center rounded-xl bg-orange-50 dark:bg-orange-500/10 text-orange-500">
 					<Icon icon="mdi:handshake-outline" width="22" />
 				</div>
 				<div>
 					<p class="font-bold text-sm">Collab Mode</p>
-					<p class="text-[10px] text-gray-500 dark:text-gray-400">Discoverable to other founders</p>
+					<p class="text-[10px] text-gray-500 dark:text-gray-400">Tap to open the live founder map</p>
 				</div>
 			</div>
-			<button onclick={toggleCollab} aria-label="Toggle Collab Mode" class={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${collabOn ? 'bg-orange-500' : 'bg-gray-200 dark:bg-gray-700'}`}>
-				<span class={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${collabOn ? 'translate-x-5' : 'translate-x-0'}`}></span>
-			</button>
-		</div>
+			<div class="flex items-center gap-2">
+				<span class="flex items-center gap-1 rounded-full bg-orange-500 px-3 py-1 text-[10px] font-black text-white uppercase tracking-wider">
+					<span class="h-1.5 w-1.5 rounded-full bg-white animate-pulse"></span>Live
+				</span>
+				<Icon icon="mdi:chevron-right" width="18" class="text-gray-400 group-hover:text-orange-500 transition-colors" />
+			</div>
+		</a>
 
 		<!-- Contact info -->
 		<div class="bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 p-5 space-y-4 shadow-sm">

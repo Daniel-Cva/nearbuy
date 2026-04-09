@@ -13,7 +13,7 @@ export async function handle({ event, resolve }) {
         const origin = event.request.headers.get('origin');
 		return new Response(null, {
 			headers: {
-				'Access-Control-Allow-Origin': origin || 'https://192.168.140.118:5173',
+				'Access-Control-Allow-Origin': origin || '*',
 				'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
 				'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-sveltekit-action',
                 'Access-Control-Allow-Credentials': 'true',
@@ -82,7 +82,7 @@ export async function handle({ event, resolve }) {
                 status: 401,
                 headers: { 
                     'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': origin || 'https://192.168.140.118:5173',
+                    'Access-Control-Allow-Origin': origin || '*',
                     'Access-Control-Allow-Credentials': 'true'
                 }
             });
@@ -95,7 +95,7 @@ export async function handle({ event, resolve }) {
                 status: 401,
                 headers: { 
                     'Content-Type': 'application/json',
-                    'Access-Control-Allow-Origin': origin || 'https://192.168.140.118:5173',
+                    'Access-Control-Allow-Origin': origin || '*',
                     'Access-Control-Allow-Credentials': 'true'
                 }
             });

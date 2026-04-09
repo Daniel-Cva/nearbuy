@@ -108,22 +108,30 @@
 	async function handleInterest() {
 		interested = true;
 		try {
-			const res = await fetch(`${API_BASE_URL}/api/orders`, { credentials: 'include',
+			const res = await fetch(`${API_BASE_URL}/api/requests`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
+				credentials: 'include',
 				body: JSON.stringify({
-					business_id: item.shopId,
-					items: [{ id: item.id, qty: 1 }],
-					notes: `Interesed in ${item.name}`
-				}),
-				credentials: 'include'
+					title: `Interested in: ${item.name}`,
+					category: [item.category || 'General'],
+					target_business_ids: [item.shopId],
+					item_id: item.id,
+					description: `I am interested in ${item.name} from your shop. Please send me a quote.`,
+					image: item.images?.[0] || ''
+				})
 			});
 			
 			if (res.ok) {
-				setTimeout(() => (done = true), 1500);
+				// Redirect to quotes page so user can track the business response
+				setTimeout(() => { window.location.href = '/user/quotes'; }, 1200);
+			} else {
+				const err = await res.json();
+				console.error('Interest failed:', err);
+				interested = false;
 			}
 		} catch (err) {
-			console.error('Failed to create interest order:', err);
+			console.error('Failed to send interest:', err);
 			interested = false;
 		}
 	}

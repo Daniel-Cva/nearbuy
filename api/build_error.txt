@@ -1,0 +1,189 @@
+﻿
+> nearbuy-api@0.0.1 build
+> vite build && node inject-do.js
+
+node.exe : `config.kit.csrf.checkOrigin` has been 
+deprecated in favour of `csrf.trustedOrigins`. It 
+will be removed in a future version
+At line:1 char:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (`conf 
+   ig.kit.csr... future version:String) [], Remot  
+  eException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+(node:27008) [DEP0040] DeprecationWarning: The 
+`punycode` module is deprecated. Please use a 
+userland alternative instead.
+(Use `node --trace-deprecation ...` to show where 
+the warning was created)
+[36mvite v7.3.1 [32mbuilding ssr environment for production...[36m[39m
+transforming...
+[32mÔ£ô[39m 254 modules transformed.
+rendering chunks...
+`config.kit.csrf.checkOrigin` has been deprecated 
+in favour of `csrf.trustedOrigins`. It will be 
+removed in a future version
+(node:27008) [DEP0040] DeprecationWarning: The 
+`punycode` module is deprecated. Please use a 
+userland alternative instead.
+(Use `node --trace-deprecation ...` to show where 
+the warning was created)
+`config.kit.csrf.checkOrigin` has been deprecated 
+in favour of `csrf.trustedOrigins`. It will be 
+removed in a future version
+[36mvite v7.3.1 [32mbuilding client environment for production...[36m[39m
+transforming...
+[32mÔ£ô[39m 150 modules transformed.
+[33mExport "tick" of module "node_modules/svelte/s
+rc/internal/client/runtime.js" was reexported 
+through module 
+"node_modules/svelte/src/index-client.js" while 
+both modules are dependencies of each other and 
+will end up in different chunks by current Rollup 
+settings. This scenario is not well supported at 
+the moment as it will produce a circular 
+dependency between chunks and will likely lead to 
+broken execution order.
+Either change the import in 
+".svelte-kit/generated/root.svelte" to point 
+directly to the exporting module or reconfigure 
+"output.manualChunks" to ensure these modules end 
+up in the same chunk.[39m
+rendering chunks...
+computing gzip size...
+[2m.svelte-kit/output/client/[22m[32m_app/version.json                       [39m[1m[2m 0.03 kB[22m[1m[22m[2m Ôöé gzip:  0.05 kB[22m
+[2m.svelte-kit/output/client/[22m[32m.vite/manifest.json                     [39m[1m[2m 2.40 kB[22m[1m[22m[2m Ôöé gzip:  0.53 kB[22m
+[2m.svelte-kit/output/client/[22m[35m_app/immutable/assets/0.Dyz6jw_n.css    [39m[1m[2m21.23 kB[22m[1m[22m[2m Ôöé gzip:  5.85 kB[22m
+[2m.svelte-kit/output/client/[22m[36m_app/immutable/entry/start.BF3yHsuX.js  [39m[1m[2m 0.08 kB[22m[1m[22m[2m Ôöé gzip:  0.09 kB[22m
+[2m.svelte-kit/output/client/[22m[36m_app/immutable/chunks/ulNtdVrR.js       [39m[1m[2m 0.32 kB[22m[1m[22m[2m Ôöé gzip:  0.25 kB[22m
+[2m.svelte-kit/output/client/[22m[36m_app/immutable/nodes/0.Byxn7gNP.js      [39m[1m[2m 1.01 kB[22m[1m[22m[2m Ôöé gzip:  0.68 kB[22m
+[2m.svelte-kit/output/client/[22m[36m_app/immutable/nodes/1.BFO8ioax.js      [39m[1m[2m 1.19 kB[22m[1m[22m[2m Ôöé gzip:  0.64 kB[22m
+[2m.svelte-kit/output/client/[22m[36m_app/immutable/chunks/DDTLI3bX.js       [39m[1m[2m 1.23 kB[22m[1m[22m[2m Ôöé gzip:  0.69 kB[22m
+[2m.svelte-kit/output/client/[22m[36m_app/immutable/chunks/BzxY3Vuv.js       [39m[1m[2m 1.49 kB[22m[1m[22m[2m Ôöé gzip:  0.66 kB[22m
+[2m.svelte-kit/output/client/[22m[36m_app/immutable/chunks/Dw47ZVBT.js       [39m[1m[2m 5.95 kB[22m[1m[22m[2m Ôöé gzip:  2.75 kB[22m
+[2m.svelte-kit/output/client/[22m[36m_app/immutable/entry/app.Rv008Ibu.js    [39m[1m[2m 7.03 kB[22m[1m[22m[2m Ôöé gzip:  3.30 kB[22m
+[2m.svelte-kit/output/client/[22m[36m_app/immutable/chunks/CIVdsWck.js       [39m[1m[2m22.15 kB[22m[1m[22m[2m Ôöé gzip:  8.76 kB[22m
+[2m.svelte-kit/output/client/[22m[36m_app/immutable/chunks/omg89BB-.js       [39m[1m[2m26.36 kB[22m[1m[22m[2m Ôöé gzip: 10.36 kB[22m
+[32mÔ£ô built in 1.54s[39m
+`config.kit.csrf.checkOrigin` has been deprecated 
+in favour of `csrf.trustedOrigins`. It will be 
+removed in a future version
+[2m.svelte-kit/output/server/[22m[32m.vite/manifest.json                                                        [39m[1m[2m 19.24 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[35m_app/immutable/assets/_layout.Dyz6jw_n.css                                 [39m[1m[2m 21.23 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/_layout.js                                                   [39m[1m[2m  0.04 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/false.js                                                            [39m[1m[2m  0.05 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/public.js                                                           [39m[1m[2m  0.07 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/users/_user_id_/orders/_server.js                    [39m[1m[2m  0.27 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/logout/_server.js                                    [39m[1m[2m  0.29 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/debug-status/_server.js                              [39m[1m[2m  0.30 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36minternal.js                                                                [39m[1m[2m  0.35 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/businesses/_business_id_/items/_server.js            [39m[1m[2m  0.39 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/businesses/_business_id_/reviews/_server.js          [39m[1m[2m  0.39 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/pages/_layout.svelte.js                                            [39m[1m[2m  0.47 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/users/_user_id_/requests/_server.js                  [39m[1m[2m  0.51 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/businesses/_business_id_/jobs/_server.js             [39m[1m[2m  0.53 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/businesses/_business_id_/quotes/_server.js           [39m[1m[2m  0.55 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/businesses/_business_id_/_server.js                  [39m[1m[2m  0.57 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/users/_user_id_/_server.js                           [39m[1m[2m  0.60 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/environment.js                                                      [39m[1m[2m  0.62 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/categories/_id_/_server.js                           [39m[1m[2m  0.65 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/admin/users/_id_/_server.js                          [39m[1m[2m  0.66 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/reports/_reportId_/_server.js                        [39m[1m[2m  0.71 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/_server.js                                               [39m[1m[2m  0.75 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/requests/_id_/status/_server.js                      [39m[1m[2m  0.83 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/admin/founders/_id_/_server.js                       [39m[1m[2m  0.83 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/reports/_server.js                                   [39m[1m[2m  0.85 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/pincodes/_pincode_/_server.js                        [39m[1m[2m  0.86 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/conversations/_conversation_id_/messages/_server.js  [39m[1m[2m  0.91 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/collab/ws/_server.js                                 [39m[1m[2m  0.93 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/reports/business/_reportId_/_server.js               [39m[1m[2m  0.99 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/reviews/_id_/_server.js                              [39m[1m[2m  1.04 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/auth/user/session/_server.js                         [39m[1m[2m  1.05 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/reports/user/_reportId_/_server.js                   [39m[1m[2m  1.05 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/reports/_reportId_/resolve/_server.js                [39m[1m[2m  1.11 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/businesses/_business_id_/feed/_server.js             [39m[1m[2m  1.11 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/utils.js                                                            [39m[1m[2m  1.15 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/reports/user/_server.js                              [39m[1m[2m  1.18 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/reports/business/_server.js                          [39m[1m[2m  1.19 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/admin/users/_server.js                               [39m[1m[2m  1.22 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/admin/logs/_type_/_server.js                         [39m[1m[2m  1.23 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/admin/founders/_server.js                            [39m[1m[2m  1.24 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/admin/businesses/_server.js                          [39m[1m[2m  1.25 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/businesses/_server.js                                [39m[1m[2m  1.28 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/admin/businesses/_id_/_server.js                     [39m[1m[2m  1.32 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/fallbacks/error.svelte.js                                          [39m[1m[2m  1.38 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/admin/businesses/_id_/approve/_server.js             [39m[1m[2m  1.47 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/storage.js                                                          [39m[1m[2m  1.64 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/me/request/_id_/_server.js                           [39m[1m[2m  1.69 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/me/logs/_server.js                                   [39m[1m[2m  2.07 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/admin/businesses/pending/_server.js                  [39m[1m[2m  2.07 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/categories/_server.js                                [39m[1m[2m  2.24 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/auth/admin/login/_server.js                          [39m[1m[2m  2.41 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/auth.js                                                             [39m[1m[2m  2.54 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/auth/user/login/_server.js                           [39m[1m[2m  2.63 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/me/request/_id_/quotes/_server.js                    [39m[1m[2m  2.69 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/items/_server.js                                     [39m[1m[2m  2.93 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/reviews/_server.js                                   [39m[1m[2m  3.02 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/conversations/_server.js                             [39m[1m[2m  3.04 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/admin/categories/_id_/_server.js                     [39m[1m[2m  3.26 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/auth/user/register/_server.js                        [39m[1m[2m  3.30 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/quotes/_server.js                                    [39m[1m[2m  3.35 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/conversations/_id_/_server.js                        [39m[1m[2m  3.44 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/orders/_id_/_server.js                               [39m[1m[2m  3.46 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/internal.js                                                         [39m[1m[2m  3.47 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/requests/_id_/_server.js                             [39m[1m[2m  3.53 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/auth/business/login/_server.js                       [39m[1m[2m  3.57 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/items/_id_/_server.js                                [39m[1m[2m  3.60 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/me/request/_server.js                                [39m[1m[2m  3.60 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/hooks.server.js                                                    [39m[1m[2m  3.78 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/admin/categories/_server.js                          [39m[1m[2m  3.95 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/orders/_server.js                                    [39m[1m[2m  4.57 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/upload/_server.js                                    [39m[1m[2m  4.63 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/me/_server.js                                        [39m[1m[2m  4.80 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/requests/_server.js                                  [39m[1m[2m  5.64 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/exports.js                                                          [39m[1m[2m  7.03 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mentries/endpoints/api/auth/business/register/_server.js                    [39m[1m[2m  7.23 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mremote-entry.js                                                            [39m[1m[2m 19.03 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/shared.js                                                           [39m[1m[2m 27.07 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/index.js                                                            [39m[1m[2m 37.22 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mchunks/root.js                                                             [39m[1m[2m 78.84 kB[22m[1m[22m
+[2m.svelte-kit/output/server/[22m[36mindex.js                                                                   [39m[1m[2m125.76 kB[22m[1m[22m
+[32mÔ£ô built in 10.01s[39m
+
+Run npm run preview to preview your production build locally.
+
+> Using @sveltejs/adapter-cloudflare
+[31merror during build:
+Error: EPERM, Permission denied: 
+\\?\D:\nearbuy\nearbuy\api\.svelte-kit\cloudflare 
+'\\?\D:\nearbuy\nearbuy\api\.svelte-kit\cloudflare'
+    at Object.rmSync (node:fs:1220:18)
+    at Object.rimraf (file:///D:/nearbuy/nearbuy/ap
+i/node_modules/@sveltejs/kit/src/utils/filesystem.j
+s:23:5)
+    at adapt (file:///D:/nearbuy/nearbuy/api/node_m
+odules/@sveltejs/adapter-cloudflare/index.js:77:12)
+    at adapt (file:///D:/nearbuy/nearbuy/api/node_m
+odules/@sveltejs/kit/src/core/adapt/index.js:41:8)
+    at finalise (file:///D:/nearbuy/nearbuy/api/nod
+e_modules/@sveltejs/kit/src/exports/vite/index.js:1
+359:13)
+    at async Object.handler (file:///D:/nearbuy/nea
+rbuy/api/node_modules/@sveltejs/kit/src/exports/vit
+e/index.js:1390:5)
+    at async PluginDriver.hookParallel (file:///D:/
+nearbuy/nearbuy/api/node_modules/rollup/dist/es/sha
+red/node-entry.js:22475:17)
+    at async Object.close (file:///D:/nearbuy/nearb
+uy/api/node_modules/rollup/dist/es/shared/node-entr
+y.js:23494:13)
+    at async buildEnvironment (file:///D:/nearbuy/n
+earbuy/api/node_modules/vite/dist/node/chunks/confi
+g.js:33555:15)
+    at async Object.build (file:///D:/nearbuy/nearb
+uy/api/node_modules/vite/dist/node/chunks/config.js
+:33900:19)[39m

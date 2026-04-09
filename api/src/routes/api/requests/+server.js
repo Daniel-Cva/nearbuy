@@ -102,7 +102,7 @@ export async function POST({ request, platform, locals }) {
         // FIX: Remove 'main_category' from INSERT, use 'long'
         const lat = parseFloat(body.lat);
         const longValue = parseFloat(body.long || body.lng);
-        const status = body.item_id ? 'accepted' : 'open';
+        const status = 'open'; // Always start as open — business must quote first
 
         // 1. Create the Request
         await db.prepare(`
@@ -128,39 +128,23 @@ export async function POST({ request, platform, locals }) {
             JSON.stringify(body.target_business_ids || [])
         ).run();
 
-        // 2. If Direct Interest, create the Order (Acceptance) record immediately
-        if (body.item_id && body.target_business_ids?.length > 0) {
-            const bizId = typeof body.target_business_ids[0] === 'string' 
-                ? body.target_business_ids[0] 
-                : null;
-            if (bizId) {
-                const orderId = 'ord_' + ulid();
-                const itemData = { 
-                    id: body.item_id, 
-                    name: title, 
-                    price: budget,
-                    image: body.image || null
-                };
-
-                await db.batch([
-                    // Create Acceptance record — no status column, accepted_item nullable
-                    db.prepare(`
-                        INSERT INTO acceptances (id, request_id, quote_id, business_id, user_id, accepted_item, final_price, created_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-                    `).bind(orderId, id, 'direct_' + ulid(), bizId, locals.user.id || locals.user.userid, JSON.stringify(itemData), budget || null),
-                    // Notify business
-                    db.prepare('INSERT INTO notifications (id, business_id, type, reference_id, message) VALUES (?, ?, ?, ?, ?)')
-                        .bind('not_' + ulid(), bizId, 'order', orderId, `New direct order: ${title}! Check your active jobs.`)
-                ]);
-                
-                return json({ message: 'Order created via direct interest', id, orderId }, {status: 201});
+        // 2. If direct interest (targeted), notify the business to check requirements
+        if (body.target_business_ids?.length > 0) {
+            const targetBizId = body.target_business_ids[0];
+            if (targetBizId) {
+                await db.prepare(
+                    'INSERT INTO notifications (id, business_id, type, reference_id, message) VALUES (?, ?, ?, ?, ?)'
+                ).bind(
+                    'not_' + ulid(), targetBizId, 'requirement', id,
+                    `A customer is interested in "${title}". Check your Requirements and send a quote!`
+                ).run();
             }
         }
 
+        return json({ message: 'Requirement posted successfully', id }, { status: 201 });
 
-        return json({ message: 'Requirement posted successfully', id }, {status: 201});
     } catch(err) { 
         console.error('Request POST Error:', err);
         return json({error: err.message}, {status: 500}); 
     }
-}
+}

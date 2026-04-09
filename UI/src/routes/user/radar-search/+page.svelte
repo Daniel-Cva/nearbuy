@@ -383,11 +383,12 @@
 						>
 							<div class="flex items-center gap-4 pr-10">
 								<div class="relative shrink-0 transition-transform">
-									<div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 text-lg font-bold text-gray-700 dark:text-gray-300">
+									<div class="flex h-12 w-12 items-center justify-center rounded-xl bg-linear-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 text-lg font-bold text-gray-700 dark:text-gray-300">
 										{p.name[0]}
 									</div>
 									{#if selectedProviders.has(p.id)}
-										<div class="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-orange-500 flex items-center justify-center text-white text-xs shadow-md border-2 border-white dark:border-gray-900">✓</div>
+										<div class="h-20 w-20 rounded-3xl bg-linear-to-br from-orange-400 to-orange-600 flex items-center justify-center text-4xl shadow-xl shadow-orange-500/20 border-4 border-white dark:border-gray-800">
+✓</div>
 									{:else}
 										<div class="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center text-transparent text-xs shadow-sm"></div>
 									{/if}
@@ -448,7 +449,7 @@
 			<div class="relative z-10 text-center space-y-6">
 				<div class="relative w-32 h-32 mx-auto rounded-full bg-orange-100 dark:bg-orange-500/20 flex items-center justify-center border-4 border-orange-500 shadow-[0_0_50px_rgba(249,115,22,0.5)] overflow-hidden">
 					<span class="text-5xl animate-pulse relative z-10">📄</span>
-					<div class="absolute left-1/2 top-1/2 w-32 h-32 origin-top-left bg-gradient-to-br from-orange-500/60 to-transparent animate-[spin_2s_linear_infinite]" style="clip-path: polygon(0 0, 100% 100%, 0 100%);"></div>
+					<div class="absolute left-1/2 top-1/2 w-32 h-32 origin-top-left bg-linear-to-br from-orange-500/60 to-transparent animate-[spin_2s_linear_infinite]" style="clip-path: polygon(0 0, 100% 100%, 0 100%);"></div>
 				</div>
 				
 				<div>
