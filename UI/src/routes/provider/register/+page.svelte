@@ -480,13 +480,17 @@
 					<strong class="text-orange-500 dark:text-orange-400">What's Next?</strong><br/>
 					An administrator will review your application. Once your business is formally approved, you will be able to log in and access your provider dashboard.
 				</p>
+				<p class="mb-4 text-xs font-bold text-gray-400">Redirecting to login in 5 seconds...</p>
 				<a
-					href="/login"
+					href="/provider/login"
 					class="inline-block w-full rounded-2xl bg-gray-900 px-6 py-4 text-sm font-bold text-white shadow-xl shadow-gray-900/20 transition-all hover:-translate-y-0.5 hover:bg-black active:scale-95 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
 				>
-					Return to Login
+					Go to Business Login
 				</a>
 			</div>
+			<script>
+				setTimeout(() => { window.location.href = '/provider/login'; }, 5000);
+			</script>
 		{:else}
 			<!-- Progress -->
 			<div class="mb-8 flex items-center gap-2">

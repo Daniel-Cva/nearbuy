@@ -5,17 +5,17 @@ export function getApiBaseUrl() {
 }
 
 /**
- * Cloudflare R2 public bucket base URL.
- * All object keys stored in D1 are resolved through this URL for display.
+ * Cloudflare R2 public bucket base URL (Legacy).
+ * Now using the guaranteed local API proxy.
  */
-export const R2_PUBLIC_BASE_URL = 'https://pub-e682b9321ee844e393cf660f83a2f3f7.r2.dev';
+export const R2_PUBLIC_BASE_URL = `${typeof window !== 'undefined' ? window.location.origin : ''}/api/media`;
 
 /**
  * Converts an R2 object key (e.g. "user/abc/profile/abc_pic.jpeg")
  * or a full URL into a displayable src attribute value.
  *
  * - Full https:// URLs are returned as-is (already absolute).
- * - Bare object keys are prefixed with the R2 public CDN base URL.
+ * - Bare object keys use the local API media proxy.
  */
 export function toDisplayUrl(path) {
 	if (!path) return '';
@@ -38,8 +38,8 @@ export function toDisplayUrl(path) {
 	// Just in case finalPath is still a bogus empty string or null
 	if (!finalPath || typeof finalPath !== 'string') return '';
 
-	// Strip any accidental leading slashes before joining
-	return `${R2_PUBLIC_BASE_URL}/${finalPath.replace(/^\/+/, '')}`;
+	// Use API_BASE_URL to proxy media requests through the backend
+	return `${API_BASE_URL}/api/media/${finalPath.replace(/^\/+/, '')}`;
 }
 
 export async function uploadToUniversalApi(payload) {

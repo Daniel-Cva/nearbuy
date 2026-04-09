@@ -156,8 +156,35 @@
 		} catch (e) { console.error(e); }
 	}
 
+	// ── Stealth Navbar Logic ───────────────────────────────────────────────────
+	let showHeader = $state(true);
+	let clickCount = $state(0);
+	let hideTimer  = null;
+	let resetTimer = null;
+
+	function activity() {
+		showHeader = true;
+		clearTimeout(hideTimer);
+		hideTimer = setTimeout(() => {
+			if (collabActive) showHeader = false;
+		}, 3000);
+	}
+
+	function handleMapTap() {
+		activity();
+		clickCount++;
+		clearTimeout(resetTimer);
+		resetTimer = setTimeout(() => { clickCount = 0; }, 1000); // reset if not fast enough
+		
+		if (clickCount >= 4) {
+			showHeader = true;
+			clickCount = 0;
+		}
+	}
+
 	onMount(() => {
-		// Get coarse position immediately for map center, startGeo() does the precise tracking
+		activity();
+		// Get coarse position immediately for map center...
 		if (navigator.geolocation) {
 			navigator.geolocation.getCurrentPosition(pos => {
 				if (myLat === null) {
@@ -168,7 +195,7 @@
 		}
 	});
 
-	onDestroy(() => { stopWs(); stopGeo(); });
+	onDestroy(() => { stopWs(); stopGeo(); clearTimeout(hideTimer); });
 </script>
 
 <svelte:head>
@@ -176,10 +203,16 @@
 	<meta name="description" content="Discover founders within 500m in real-time using NearBuy Collab Mode." />
 </svelte:head>
 
-<div class="relative flex h-screen w-full flex-col overflow-hidden bg-gray-950">
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<div 
+	class="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-gray-950"
+	onclick={handleMapTap}
+	onmousemove={activity}
+>
 
-	<!-- Floating header -->
-	<div class="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-4 pt-safe pt-4 pointer-events-none">
+	<!-- Floating header (Stealth Mode) -->
+	<div class="absolute top-0 left-0 right-0 z-30 flex items-center justify-between px-4 pt-safe pt-4 pointer-events-none transition-all duration-700 {showHeader ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-10'}">
 		<div class="pointer-events-auto flex items-center gap-2">
 			<a href="/provider/profile" aria-label="Back to profile"
 				class="flex h-9 w-9 items-center justify-center rounded-xl bg-black/60 backdrop-blur-md text-white border border-white/10">

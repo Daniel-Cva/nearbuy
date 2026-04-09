@@ -25,9 +25,9 @@
 				: 'bg-purple-500/10 text-purple-400';
 
 	function buildDocUrl(docPath) {
-		if (!docPath) return '#';
+		if (!docPath) return '';
 		if (/^https?:\/\//i.test(docPath)) return docPath;
-		return `${API_BASE_URL}/${String(docPath).replace(/^\/+/, '')}`;
+		return `${API_BASE_URL}/api/media/${String(docPath).replace(/^\/+/, '')}`;
 	}
 
 	function getTypeLabel(biz) {

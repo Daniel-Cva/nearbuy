@@ -16,7 +16,10 @@ export async function GET({ platform, locals }) {
         const db = platform.env.DB;
         let profile = null;
 
-        if (payload.role === 'founder') {
+        if (payload.role === 'admin') {
+            profile = await db.prepare('SELECT id, email, mobile, username as name, created_at FROM sa_login WHERE id = ?').bind(userId).first();
+            if (profile) profile.role = 'admin';
+        } else if (payload.role === 'founder') {
             profile = await db.prepare('SELECT id, biz_id, name, email, phone as mobile, avatar_url, bio, collab_mode, created_at FROM founder WHERE id = ?').bind(userId).first();
         } else if (payload.role === 'user') {
             profile = await db.prepare('SELECT id, firstname, lastname, email, phone as mobile, address, city, pincode, district, state, avatar_url, theme, interests, status, created_at FROM user_data WHERE id = ?').bind(userId).first();
@@ -26,7 +29,7 @@ export async function GET({ platform, locals }) {
                 try { profile.interests = profile.interests ? JSON.parse(profile.interests) : []; } catch(e) { profile.interests = []; }
             }
         } else {
-            profile = await db.prepare('SELECT id, biz_id, name, email, mobile, role, avatar_url, status, created_at FROM biz_staffs WHERE id = ?').bind(userId).first();
+            profile = await db.prepare('SELECT id, biz_id, name, email, mobile, role, status, created_at FROM biz_staffs WHERE id = ?').bind(userId).first();
         }
 
         if (!profile) return json({ message: 'Profile not found' }, { status: 404 });

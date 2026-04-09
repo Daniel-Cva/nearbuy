@@ -18,7 +18,7 @@
 	function toAssetUrl(path) {
 		if (!path) return '';
 		if (/^https?:\/\//i.test(path)) return path;
-		return `${API_BASE_URL}/${String(path).replace(/^\/+/, '')}`;
+		return `${API_BASE_URL}/api/media/${String(path).replace(/^\/+/, '')}`;
 	}
 
 	function pickFirst(...values) {

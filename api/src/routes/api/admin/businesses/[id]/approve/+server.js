@@ -11,25 +11,15 @@ export async function POST({ params, platform, locals }) {
         const adminPayload = locals.user;
         if (!adminPayload || adminPayload.role !== 'admin') {
             return json({ message: 'Unauthorized' }, { status: 401 });
-        }
-
         // 2. Existing check
-        const biz = await db.prepare('SELECT status, bname, username FROM biz_data WHERE id = ?').bind(bizId).first();
+        const biz = await db.prepare('SELECT status, bname, username, avatar_url FROM biz_data WHERE id = ?').bind(bizId).first();
         if (!biz) {
             return json({ message: 'Business not found' }, { status: 404 });
         }
-
-        if (!biz.username) {
-            return json({ message: 'Business username not found. Cannot create dynamic tables.' }, { status: 400 });
-        }
-
-        if (biz.status !== 'pending') {
             return json({ message: `Business is already ${biz.status}` }, { status: 400 });
         }
 
-        // 3. Approval & Dynamic Table Creation (Batch)
-        const tablePrefix = biz.username;
-
+        // 3. Approval
         await db.batch([
             // Update Status
             db.prepare("UPDATE biz_data SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE id = ?").bind(bizId),
