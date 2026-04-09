@@ -387,8 +387,9 @@
 										{p.name[0]}
 									</div>
 									{#if selectedProviders.has(p.id)}
-										<div class="h-20 w-20 rounded-3xl bg-linear-to-br from-orange-400 to-orange-600 flex items-center justify-center text-4xl shadow-xl shadow-orange-500/20 border-4 border-white dark:border-gray-800">
-✓</div>
+										<div class="absolute -top-2 -right-2 flex h-6 w-6 items-center justify-center rounded-full border-2 border-white bg-orange-500 text-xs font-black text-white shadow-sm dark:border-gray-800">
+											✓
+										</div>
 									{:else}
 										<div class="absolute -top-2 -right-2 h-6 w-6 rounded-full bg-white dark:bg-gray-800 border-2 border-gray-300 dark:border-gray-600 flex items-center justify-center text-transparent text-xs shadow-sm"></div>
 									{/if}

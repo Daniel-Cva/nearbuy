@@ -64,10 +64,12 @@ export async function POST({ request, platform, cookies }) {
         ]);
 
         // ── HttpOnly cookie — JWT lives only on the server side ───────────────
-        const token = await createToken(
-            { id: userId, userid: userId, role: 'user' },
-            platform.env.JWT_SECRET
-        );
+        const secret = platform.env.JWT_SECRET || 'nearbuy_dev_secret_key_123';
+        const token = await createToken({ 
+            userid: userId, 
+            role: 'user', 
+            firstname 
+        }, secret);
 
         cookies.set('token', token, {
             path:     '/',

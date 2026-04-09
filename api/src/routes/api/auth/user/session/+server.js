@@ -22,7 +22,7 @@ export async function GET({ cookies, platform }) {
             }, { status: 401 });
         }
 
-        const secret = platform.env.JWT_SECRET;
+        const secret = platform.env.JWT_SECRET || 'nearbuy_dev_secret_key_123';
         const payload = await verifyToken(token, secret);
 
         if (!payload) {

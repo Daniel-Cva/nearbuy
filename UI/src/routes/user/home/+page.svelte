@@ -88,7 +88,8 @@
 				});
             }
 
-            const bRes = await fetch(`${API_BASE_URL}/api/businesses?lat=${userLoc.lat || ''}&long=${userLoc.lng || ''}`);
+            // Fetch ALL businesses without geofence limits so they all plot on the map
+            const bRes = await fetch(`${API_BASE_URL}/api/businesses`);
             if (bRes.ok) businesses = await bRes.json();
 		} catch (e) {
 		} finally {
@@ -168,7 +169,6 @@
 				<span class="flex items-center gap-2 text-sm font-bold dark:text-white">
 					<Icon icon="mdi:map-marker-radius" class="text-orange-500" /> Nearby Discovery
 				</span>
-				<span class="text-[9px] text-gray-400 ml-6 uppercase font-black tracking-widest">Nearest First • No limits</span>
 			</div>
 			<span class="text-xs font-bold text-orange-500">{showNearbyMap ? 'Hide Map' : 'Show Map'}</span>
 		</button>
@@ -291,17 +291,19 @@
     <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
         <button class="absolute inset-0" onclick={() => selectedBiz = null}></button>
         <div class="relative w-full max-w-xs overflow-hidden rounded-[32px] bg-white shadow-2xl dark:bg-gray-900 animate-in zoom-in-95 duration-200">
-            <div class="h-20 bg-orange-500"></div>
-            <div class="px-6 pb-6 text-center">
-                <div class="mx-auto -mt-10 h-20 w-20 overflow-hidden rounded-2xl border-4 border-white bg-gray-100 dark:border-gray-900 dark:bg-gray-800">
-                    <img src={toDisplayUrl(selectedBiz.avatar_url)} alt="biz" class="h-full w-full object-cover" />
+            <a href={`/business/${selectedBiz.id}`} class="block transition-transform hover:scale-[1.02]">
+                <div class="h-20 bg-orange-500"></div>
+                <div class="px-6 pb-6 text-center">
+                    <div class="mx-auto -mt-10 h-20 w-20 overflow-hidden rounded-2xl border-4 border-white bg-gray-100 dark:border-gray-900 dark:bg-gray-800 shadow-md">
+                        <img src={toDisplayUrl(selectedBiz.avatar_url)} alt="biz" class="h-full w-full object-cover" />
+                    </div>
+                    <h3 class="mt-3 text-lg font-black dark:text-white">{selectedBiz.bname}</h3>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{selectedBiz.city}</p>
+                    <p class="mt-2 text-xs font-bold text-orange-500 bg-orange-50 dark:bg-orange-500/10 rounded-lg py-1">Tap to Expand Profile</p>
                 </div>
-                <h3 class="mt-3 text-lg font-black dark:text-white">{selectedBiz.bname}</h3>
-                <p class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{selectedBiz.city}</p>
-                <div class="mt-6 flex gap-2">
-                    <button onclick={() => selectedBiz = null} class="flex-1 rounded-xl bg-gray-50 py-3 text-[10px] font-bold dark:bg-gray-800">Dismiss</button>
-                    <a href={`/business/${selectedBiz.id}`} class="flex-1 rounded-xl bg-orange-500 py-3 text-[10px] font-bold text-white shadow-lg">View Shop</a>
-                </div>
+            </a>
+            <div class="px-6 pb-6 flex gap-2">
+                <button onclick={() => selectedBiz = null} class="flex-1 rounded-xl bg-gray-100 py-3 text-[10px] font-bold dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 transition">Dismiss</button>
             </div>
         </div>
     </div>

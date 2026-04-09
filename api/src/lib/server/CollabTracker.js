@@ -39,8 +39,8 @@ export class CollabTracker extends DurableObject {
             const data = JSON.parse(message);
 
             if (data.type === 'heartbeat') {
-                // Store metadata in the WS tag so it survives hibernation
-                const tag = JSON.stringify({
+                // Store metadata in the WS tag natively (Cloudflare supports object attachments)
+                const tag = {
                     founderId:   data.founderId,
                     bizId:       data.bizId || null,
                     bizName:     data.bizName || '',
@@ -49,13 +49,9 @@ export class CollabTracker extends DurableObject {
                     lat:         data.lat,
                     lng:         data.lng,
                     lastSeen:    Date.now()
-                });
+                };
 
-                // Re-tag this socket (replaces old tags)
-                this.ctx.getTags(ws); // touch to confirm alive
-                // Note: Cloudflare doesn't support dynamic re-tagging;
-                // we use getWebSockets + custom serialization instead.
-                // Store data in the socket's serializedAttachment
+                // Store data in the socket's serializedAttachment using Structured Clone algorithm natively
                 ws.serializeAttachment(tag);
 
                 // Broadcast updated list
@@ -67,9 +63,7 @@ export class CollabTracker extends DurableObject {
         }
     }
 
-    webSocketClose(ws, code, reason) {
-        // Socket removed automatically from ctx.getWebSockets()
-    }
+    webSocketClose(ws, code, reason) {}
 
     webSocketError(ws, error) {
         console.error('[CollabTracker] socket error:', error.message);
@@ -80,27 +74,24 @@ export class CollabTracker extends DurableObject {
         const now     = Date.now();
         const sockets = this.ctx.getWebSockets();
 
-        // Build list of all known founder positions
-        const allFounders = sockets
-            .map(ws => {
-                try {
-                    const raw = ws.deserializeAttachment();
-                    if (!raw) return null;
-                    return JSON.parse(raw);
-                } catch { return null; }
-            })
-            .filter(f => f && f.founderId && f.lat !== null && (now - f.lastSeen) < STALE_TIMEOUT);
+        // Build list of all known founder positions exactly 1:1 with sockets
+        const allFounders = sockets.map(ws => {
+            try {
+                const f = ws.deserializeAttachment();
+                return (f && f.founderId && f.lat !== null && (now - f.lastSeen) < STALE_TIMEOUT) ? f : null;
+            } catch { return null; }
+        });
 
         // For each socket, send the founders within RADIUS_M
-        for (const ws of sockets) {
-            try {
-                const raw = ws.deserializeAttachment();
-                if (!raw) continue;
-                const me = JSON.parse(raw);
-                if (!me.founderId) continue;
+        for (let i = 0; i < sockets.length; i++) {
+            const ws = sockets[i];
+            const me = allFounders[i];
+            
+            if (!me) continue; // Skip if this specific socket has no valid data yet
 
+            try {
                 const nearby = allFounders
-                    .filter(f => f.founderId !== me.founderId)
+                    .filter((f, index) => f && index !== i) // Exclude exactly THIS socket, allowing same-account testing on multiple devices
                     .filter(f => haversineM(me.lat, me.lng, f.lat, f.lng) <= RADIUS_M)
                     .map(f => ({
                         founderId:   f.founderId,
@@ -115,7 +106,7 @@ export class CollabTracker extends DurableObject {
 
                 ws.send(JSON.stringify({ type: 'founders', founders: nearby }));
             } catch (e) {
-                // Socket may be dead; Cloudflare will clean it up
+                // Socket may be dead
             }
         }
     }

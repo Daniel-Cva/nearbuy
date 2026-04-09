@@ -25,7 +25,7 @@ export async function GET({ request, platform, url }) {
     }
 
     // 2. Only business founders may use collab mode
-    if (payload.role !== 'business') {
+    if (payload.role !== 'founder') {
         return new Response(JSON.stringify({ message: 'Founder accounts only' }), { status: 403 });
     }
 

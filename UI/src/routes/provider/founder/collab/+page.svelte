@@ -49,17 +49,21 @@
 	let ws      = null;
 	let hbTimer = null;
 
-	function getWsUrl() {
-		const base  = API_BASE_URL.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://');
-		const token = document.cookie.split('; ').find(r => r.startsWith('token='))?.split('=')[1] || '';
-		return `${base}/api/collab/ws?token=${encodeURIComponent(token)}`;
+	// Fetch a WS ticket from the server (httpOnly cookies can't be read by JS)
+	async function getWsUrl() {
+		const res = await fetch(`${API_BASE_URL}/api/collab/ticket`, { credentials: 'include' });
+		if (!res.ok) throw new Error('Not authenticated for collab');
+		const { ticket } = await res.json();
+		const base = API_BASE_URL.replace(/^https:\/\//, 'wss://').replace(/^http:\/\//, 'ws://');
+		return `${base}/api/collab/ws?token=${encodeURIComponent(ticket)}`;
 	}
 
-	function startWs() {
+	async function startWs() {
 		if (ws) return;
 		wsStatus = 'connecting';
 		try {
-			ws = new WebSocket(getWsUrl());
+			const url = await getWsUrl(); // Fetch ticket server-side (httpOnly cookie)
+			ws = new WebSocket(url);
 			ws.onopen    = () => { wsStatus = 'live'; sendHeartbeat(); hbTimer = setInterval(sendHeartbeat, 5000); };
 			ws.onmessage = (e) => {
 				try {
@@ -69,7 +73,10 @@
 			};
 			ws.onerror = () => { wsStatus = 'error'; };
 			ws.onclose = () => { wsStatus = 'idle'; clearInterval(hbTimer); ws = null; founders = []; };
-		} catch { wsStatus = 'error'; }
+		} catch (e) { 
+			console.error('[Collab] WS connect failed:', e.message);
+			wsStatus = 'error'; 
+		}
 	}
 
 	function stopWs() {
@@ -161,9 +168,8 @@
 	let clickCount = $state(0);
 	let hideTimer  = null;
 	let resetTimer = null;
-
-	function activity() {
-		showHeader = true;
+	
+	function hideHeaderLater() {
 		clearTimeout(hideTimer);
 		hideTimer = setTimeout(() => {
 			if (collabActive) showHeader = false;
@@ -171,19 +177,21 @@
 	}
 
 	function handleMapTap() {
-		activity();
 		clickCount++;
 		clearTimeout(resetTimer);
-		resetTimer = setTimeout(() => { clickCount = 0; }, 1000); // reset if not fast enough
+		
+		// Reset click count after 1s if they stop tapping
+		resetTimer = setTimeout(() => { clickCount = 0; }, 1000); 
 		
 		if (clickCount >= 4) {
 			showHeader = true;
 			clickCount = 0;
+			hideHeaderLater();
 		}
 	}
 
 	onMount(() => {
-		activity();
+		hideHeaderLater();
 		// Get coarse position immediately for map center...
 		if (navigator.geolocation) {
 			navigator.geolocation.getCurrentPosition(pos => {
@@ -208,7 +216,6 @@
 <div 
 	class="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-gray-950"
 	onclick={handleMapTap}
-	onmousemove={activity}
 >
 
 	<!-- Floating header (Stealth Mode) -->

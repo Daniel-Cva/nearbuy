@@ -169,12 +169,13 @@ export async function POST({ request, platform, cookies }) {
         // Dynamic table creation removed — now handled during Super Admin Approval flow.
 
         // Mint token as specifically requested for UI auto-login onboarding flows
+        const secret = platform.env.JWT_SECRET || 'nearbuy_dev_secret_key_123';
         const token = await createToken({ 
             userid: founderId,
             username: finalUsername,
             bizId: bizId, 
             role: 'founder' 
-        }, platform.env.JWT_SECRET);
+        }, secret);
 
         cookies.set('token', token, {
             path: '/',
