@@ -12,7 +12,9 @@ export async function GET({ params, platform, locals }) {
     try {
         if (!locals.user) return json({ message: 'Unauthorized' }, { status: 401 });
         const db = platform.env.DB;
-        const myId = locals.user.bizId || locals.user.id;
+        // Accept either bizId OR personal founderId/userId — covers all conversation types
+        const bizId   = locals.user.bizId || null;
+        const userId  = locals.user.userid || locals.user.id || null;
         const conversationId = params.id;
 
         // 1. Authorize: Check if participant is part of the conversation
@@ -23,15 +25,20 @@ export async function GET({ params, platform, locals }) {
         `).bind(conversationId).first();
 
         if (!con) return json({ message: 'Conversation not found' }, { status: 404 });
-        if (con.participant1_id !== myId && con.participant2_id !== myId) {
-            return json({ message: 'Forbidden' }, { status: 403 });
-        }
+        const myIds = [bizId, userId].filter(Boolean);
+        const isMember = myIds.includes(con.participant1_id) || myIds.includes(con.participant2_id);
+        if (!isMember) return json({ message: 'Forbidden' }, { status: 403 });
+        
+        // Determine the effective self ID and other ID
+        const selfId  = myIds.find(id => id === con.participant1_id || id === con.participant2_id);
+        const otherId = con.participant1_id === selfId ? con.participant2_id : con.participant1_id;
 
-        // Resolve the other participant's display name
-        const otherId = con.participant1_id === myId ? con.participant2_id : con.participant1_id;
-        const biz = await db.prepare('SELECT bname as name, avatar_url FROM biz_data WHERE id = ?').bind(otherId).first();
-        const displayUser = biz || await db.prepare("SELECT firstname || ' ' || lastname as name, avatar_url FROM user_data WHERE id = ?").bind(otherId).first();
-        const enrichedCon = { ...con, display_name: displayUser?.name || 'Contact', display_avatar: displayUser?.avatar_url || null };
+        // Resolve display name — check biz_data, then founder, then user_data
+        const biz     = await db.prepare('SELECT bname as name, avatar_url FROM biz_data WHERE id = ?').bind(otherId).first();
+        const founder = !biz ? await db.prepare('SELECT name, avatar_url FROM founder WHERE id = ?').bind(otherId).first() : null;
+        const user    = (!biz && !founder) ? await db.prepare("SELECT firstname || ' ' || lastname as name, avatar_url FROM user_data WHERE id = ?").bind(otherId).first() : null;
+        const display = biz || founder || user;
+        const enrichedCon = { ...con, display_name: display?.name || 'Founder', display_avatar: display?.avatar_url || null };
 
         // 2. Fetch last 50 messages
         const { results: messages } = await db.prepare(`
@@ -56,7 +63,10 @@ export async function POST({ params, request, platform, locals }) {
     try {
         if (!locals.user) return json({ message: 'Unauthorized' }, { status: 401 });
         const db = platform.env.DB;
-        const myId = locals.user.bizId || locals.user.id;
+        // Accept either bizId OR personal founderId/userId
+        const bizId  = locals.user.bizId || null;
+        const userId = locals.user.userid || locals.user.id || null;
+        const myIds  = [bizId, userId].filter(Boolean);
         const conversationId = params.id;
         const body = await request.json();
         const { text, type = 'text' } = body;
@@ -66,7 +76,11 @@ export async function POST({ params, request, platform, locals }) {
         // 1. Verify access
         const con = await db.prepare('SELECT participant1_id, participant2_id FROM conversations WHERE id = ?').bind(conversationId).first();
         if (!con) return json({ message: 'Conversation not found' }, { status: 404 });
-        if (con.participant1_id !== myId && con.participant2_id !== myId) return json({ message: 'Forbidden' }, { status: 403 });
+        const isMember = myIds.includes(con.participant1_id) || myIds.includes(con.participant2_id);
+        if (!isMember) return json({ message: 'Forbidden' }, { status: 403 });
+
+        // Use whichever of our IDs is actually in this conversation as the sender
+        const myId = myIds.find(id => id === con.participant1_id || id === con.participant2_id);
 
         const recipientId = con.participant1_id === myId ? con.participant2_id : con.participant1_id;
         const messageId = 'msg_' + ulid();

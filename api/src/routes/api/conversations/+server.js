@@ -10,7 +10,7 @@ export async function GET({ platform, locals }) {
     try {
         if (!locals.user) return json({ message: 'Unauthorized' }, { status: 401 });
         const db = platform.env.DB;
-        const myId = locals.user.id;
+        const myId = locals.user.id || locals.user.userid;
         const bizId = locals.user.bizId || null;
 
         // Fetch conversations where I am a participant (personal OR business)
@@ -54,9 +54,12 @@ export async function POST({ request, platform, locals }) {
         const { recipient_id, reference_id, type = 'general' } = body;
 
         // IDENTITY RESOLUTION: 
-        // If it's an 'order' type chat (Buyer <-> Merchant), use the personal ID.
-        // Otherwise, prefer bizId for business contexts.
-        const myId = (type === 'order' || type === 'user') ? locals.user.id : (locals.user.bizId || locals.user.id);
+        // founder_collab: use personal founderId so both ends can access by founderId
+        // order/user: use personal userId
+        // business-context (quotes etc): prefer bizId
+        const myId = (type === 'founder_collab' || type === 'order' || type === 'user') 
+            ? (locals.user.userid || locals.user.id) 
+            : (locals.user.bizId || locals.user.userid || locals.user.id);
 
         if (!recipient_id) return json({ message: 'Recipient ID required' }, { status: 400 });
 

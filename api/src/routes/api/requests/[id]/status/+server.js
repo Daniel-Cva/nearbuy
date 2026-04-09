@@ -9,7 +9,7 @@ export async function PATCH({ params, request, platform, locals }) {
         const reqResult = await db.prepare('SELECT user_id, status FROM requests WHERE id = ?').bind(params.id).first();
         if (!reqResult) return json({message: 'Not found'}, {status: 404});
         
-        if (reqResult.user_id !== locals.user.id) return json({message: 'Forbidden'}, {status: 403});
+        if (reqResult.user_id !== (locals.user.id || locals.user.userid)) return json({message: 'Forbidden'}, {status: 403});
 
         await db.prepare('UPDATE requests SET status = ? WHERE id = ?').bind(body.status, params.id).run();
         return json({ message: 'Status updated' }, {status: 200});

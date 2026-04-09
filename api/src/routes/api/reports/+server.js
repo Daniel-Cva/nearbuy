@@ -8,7 +8,7 @@ export async function POST({ request, platform, locals }) {
         const db = platform.env.DB;
 
         // Reporter is either the user id, or the biz id.
-        const reportedBy = locals.user.bizId || locals.user.id;
+        const reportedBy = locals.user.bizId || locals.user.id || locals.user.userid;
         if (!reportedBy) return json({message: 'Unknown reporter'}, {status: 400});
 
         const id = 'rpt_' + ulid();

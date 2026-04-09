@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 export async function GET({ params, platform, locals }) {
     try {
-        if (!locals.user || locals.user.id !== params.user_id) return json({message: 'Forbidden'}, {status: 403});
+        if (!locals.user || (locals.user.id || locals.user.userid) !== params.user_id) return json({message: 'Forbidden'}, {status: 403});
         const db = platform.env.DB;
         const { results } = await db.prepare('SELECT * FROM requests WHERE user_id = ? ORDER BY created_at DESC').bind(params.user_id).all();
         return json(results);

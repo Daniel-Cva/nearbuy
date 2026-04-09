@@ -14,7 +14,7 @@ export async function GET({ url, platform, locals }) {
         if (locals.user.role === 'user') {
             // Users only see their own
             query += ' WHERE user_id = ? ORDER BY created_at DESC';
-            params.push(locals.user.id);
+            params.push(locals.user.id || locals.user.userid);
         } else if (bizId) {
             // Businesses see requests matching their category OR location (within 50km if GPS available)
             // OR requests explicitly targeted to them 

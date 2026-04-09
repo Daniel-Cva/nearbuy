@@ -12,13 +12,15 @@
 	let scrollY = $state(0);
 	let lastScrollY = $state(0);
 	let showMore = $state(false);
+	let clickCount = $state(0);
+	let clickTimer = null;
+	let navHideTimer = null;
 	
 	// Reactive placeholders for UI elements that were previously in fake stores
 	let newReqCount = $state(0);
 	let profile = $derived(getCurrentProfile());
 	let bizId = $derived(getCurrentBusinessId());
 
-	let isHome = $derived(page.url.pathname === '/provider/home');
 	let isAuthPage = $derived(
 		[
 			'/provider/login', 
@@ -30,9 +32,11 @@
 			'/verify-otp'
 		].includes(page.url.pathname)
 	);
+	// Collab page has its own full-screen overlay header — hide layout nav there
+	let isCollabPage = $derived(page.url.pathname.includes('/founder/collab'));
 
 	onMount(async () => {
-		if (isAuthPage || isHome) { loadingAuth = false; return; }
+		if (isAuthPage) { loadingAuth = false; return; }
 
 		// If store already populated (from login), skip /api/me
 		if (isAuthenticated()) { loadingAuth = false; return; }
@@ -54,22 +58,35 @@
 		goto('/provider/login');
 	});
 
+	function scheduleHide() {
+		clearTimeout(navHideTimer);
+		navHideTimer = setTimeout(() => { navVisible = false; }, 5000);
+	}
+
 	function handleTap() {
-		if (isHome) return;
-		navVisible = true;
+		if (isAuthPage || isCollabPage) return;
+		clickCount++;
+		clearTimeout(clickTimer);
+		clickTimer = setTimeout(() => { clickCount = 0; }, 800);
+		if (clickCount >= 4) {
+			clickCount = 0;
+			navVisible = true;
+			scheduleHide();
+		}
 	}
 
 	$effect(() => {
-		if (isHome) {
-			if (scrollY > lastScrollY && scrollY > 50) {
-				navVisible = false;
-			} else if (scrollY < lastScrollY) {
-				navVisible = true;
-			}
-			lastScrollY = scrollY;
-		} else {
+		// Always hide on auth or collab
+		if (isAuthPage || isCollabPage) { navVisible = false; return; }
+		// Scroll down → hide; Scroll up → show and schedule auto-hide
+		if (scrollY > lastScrollY && scrollY > 50) {
 			navVisible = false;
+			clearTimeout(navHideTimer);
+		} else if (scrollY < lastScrollY) {
+			navVisible = true;
+			scheduleHide();
 		}
+		lastScrollY = scrollY;
 	});
 
 	const sidebarItems = [
@@ -118,7 +135,7 @@
 	</aside>
 
 	<!-- MOBILE HEADER -->
-	<header class={`fixed top-0 right-0 left-0 z-30 flex items-center justify-between border-b border-orange-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 md:hidden ${isAuthPage ? 'hidden' : ''}`}>
+	<header class={`fixed top-0 right-0 left-0 z-30 flex items-center justify-between border-b border-orange-200 bg-white/95 px-4 py-3 backdrop-blur dark:border-gray-800 dark:bg-gray-900/95 md:hidden ${(isAuthPage || isCollabPage) ? 'hidden' : ''}`}>
 		<a href="/" class="text-xl font-black"><span class="text-gray-900 dark:text-white">Near</span><span class="text-orange-500">Buy</span></a>
 		<div class="flex items-center gap-3">
 			<a href="/provider/profile" class="flex h-9 w-9 items-center justify-center rounded-xl bg-orange-500 text-sm font-bold text-white shadow-md shadow-orange-500/20">
@@ -128,7 +145,7 @@
 	</header>
 
 	<!-- MAIN CONTENT -->
-	<div class={`min-h-screen flex-1 transition-all ${isAuthPage ? 'pt-0 pb-0 md:ml-0' : 'pt-14 pb-24 md:ml-64 md:pt-0 md:pb-0'}`}>
+	<div class={`min-h-screen flex-1 transition-all ${(isAuthPage || isCollabPage) ? 'pt-0 pb-0 md:ml-0' : 'pt-14 pb-24 md:ml-64 md:pt-0 md:pb-0'}`}>
 		{#if loadingAuth && !isAuthPage}
 			<div class="flex h-[80vh] items-center justify-center">
 				<div class="h-8 w-8 animate-spin rounded-full border-4 border-orange-500 border-t-transparent"></div>

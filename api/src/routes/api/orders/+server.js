@@ -84,13 +84,23 @@ export async function GET({ url, platform, locals }) {
 // POST: Accept a quote (Create an Order)
 export async function POST({ request, platform, locals }) {
     try {
-        if (!locals.user || locals.user.role !== 'user') return json({ message: 'Unauthorized' }, { status: 401 });
+        if (!locals.user) return json({ message: 'Unauthorized' }, { status: 401 });
         
         const db = platform.env.DB;
         const body = await request.json();
         const { quote_id, request_id, business_id, item_data, price } = body;
 
         if (!quote_id || !request_id || !business_id) return json({ message: 'Missing IDs' }, { status: 400 });
+
+        // Resolve the caller's personal user ID (works for both 'user' and 'founder' roles)
+        const callerId = locals.user.id || locals.user.userid;
+        if (!callerId) return json({ message: 'Could not resolve user identity' }, { status: 401 });
+
+        // Ownership check: only the person who posted the requirement can accept a quote
+        const req = await db.prepare('SELECT user_id FROM requests WHERE id = ?').bind(request_id).first();
+        if (!req) return json({ message: 'Requirement not found' }, { status: 404 });
+        if (req.user_id !== callerId) return json({ message: 'Forbidden: not your requirement' }, { status: 403 });
+
 
         const orderId = 'ord_' + ulid();
         const finalPrice = price != null ? String(price) : null;
@@ -100,7 +110,7 @@ export async function POST({ request, platform, locals }) {
             db.prepare(`
                 INSERT INTO acceptances (id, request_id, quote_id, business_id, user_id, accepted_item, final_price, created_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            `).bind(orderId, request_id, quote_id, business_id, locals.user.id, item_data ? JSON.stringify(item_data) : null, finalPrice),
+            `).bind(orderId, request_id, quote_id, business_id, callerId, item_data ? JSON.stringify(item_data) : null, finalPrice),
             // Update requirement status
             db.prepare('UPDATE requests SET status = ? WHERE id = ?').bind('accepted', request_id),
             // Update quote status

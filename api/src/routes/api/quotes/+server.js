@@ -28,7 +28,7 @@ export async function GET({ url, platform, locals }) {
         } else if (locals.user.role === 'user') {
             // All quotes for the user's active requests
             query += " WHERE q.request_id IN (SELECT id FROM requests WHERE user_id = ?)";
-            params.push(locals.user.id);
+            params.push(locals.user.id || locals.user.userid);
         }
 
         query += " ORDER BY q.created_at DESC";

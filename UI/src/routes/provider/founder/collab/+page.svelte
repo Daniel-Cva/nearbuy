@@ -2,6 +2,7 @@
 	import { onMount, onDestroy } from 'svelte';
 	import { API_BASE_URL } from '$lib/helpers/config.js';
 	import { getCurrentProfile } from '$lib/stores/auth.svelte.js';
+	import { toDisplayUrl } from '$lib/helpers/upload.js';
 	import Icon from '@iconify/svelte';
 	import NearBuyMap from '$lib/components/NearBuyMap.svelte';
 
@@ -16,6 +17,11 @@
 	let selectedFounder = $state(null);
 	let wsStatus        = $state('idle');   // idle | connecting | live | error
 	let locationErr     = $state('');
+
+	// My own identity — fetched from /api/me on mount so we get correct biz name
+	let myFounderName = $state('Founder');
+	let myBizName     = $state('Business');
+	let myAvatarUrl   = $state(null);
 
 	// Map ref getter from NearBuyMap's onMapReady
 	let mapRef = null;
@@ -92,8 +98,9 @@
 			type:        'heartbeat',
 			founderId:   profile?.id || bizId,
 			bizId,
-			bizName:     profile?.bname || profile?.firstname || 'Business',
-			founderName: profile?.firstname || 'Founder',
+			bizName:     myBizName,
+			founderName: myFounderName,
+			avatarUrl:   myAvatarUrl,
 			bizCategory: profile?.category || '',
 			lat: myLat, lng: myLng
 		}));
@@ -150,14 +157,14 @@
 		if (f) selectedFounder = f;
 	}
 
-	// ── Message a founder ──────────────────────────────────────────────────────
+	// ── Message a founder — founder to founder, not biz to biz ─────────────────
 	async function messageFounder(f) {
 		try {
 			const res = await fetch(`${API_BASE_URL}/api/conversations`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				credentials: 'include',
-				body: JSON.stringify({ recipient_id: f.bizId || f.founderId, type: 'general' })
+				body: JSON.stringify({ recipient_id: f.founderId, type: 'founder_collab' })
 			});
 			if (res.ok) { const { id } = await res.json(); window.location.href = `/provider/messages/${id}`; }
 		} catch (e) { console.error(e); }
@@ -173,7 +180,7 @@
 		clearTimeout(hideTimer);
 		hideTimer = setTimeout(() => {
 			if (collabActive) showHeader = false;
-		}, 3000);
+		}, 5000);
 	}
 
 	function handleMapTap() {
@@ -190,7 +197,18 @@
 		}
 	}
 
-	onMount(() => {
+	onMount(async () => {
+		// Fetch our real identity from the server (profile.bname doesn't exist on founder profiles)
+		try {
+			const res = await fetch(`${API_BASE_URL}/api/me`, { credentials: 'include' });
+			if (res.ok) {
+				const data = await res.json();
+				myFounderName = data.profile?.name || data.profile?.firstname || 'Founder';
+				myBizName     = data.business?.bname || data.profile?.bname || 'Business';
+				myAvatarUrl   = data.profile?.avatar_url || data.business?.avatar_url || null;
+			}
+		} catch(e) {}
+
 		hideHeaderLater();
 		// Get coarse position immediately for map center...
 		if (navigator.geolocation) {
@@ -214,7 +232,7 @@
 <!-- svelte-ignore a11y_no_static_element_interactions -->
 <!-- svelte-ignore a11y_click_events_have_key_events -->
 <div 
-	class="relative flex h-[100dvh] w-full flex-col overflow-hidden bg-gray-950"
+	class="relative flex h-dvh w-full flex-col overflow-hidden bg-gray-950"
 	onclick={handleMapTap}
 >
 
@@ -284,12 +302,17 @@
 				{#each founders as f}
 					<button onclick={() => selectedFounder = f}
 						class="flex shrink-0 items-center gap-2 rounded-xl bg-white/10 px-3 py-2 transition-all hover:bg-white/20 active:scale-95">
-						<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-700 text-xs font-black text-white">
-							{(f.founderName||'F')[0]}
-						</div>
+						{#if f.avatarUrl}
+							<img src={toDisplayUrl(f.avatarUrl)} alt={f.founderName} class="h-8 w-8 shrink-0 rounded-full object-cover border border-white/20" />
+						{:else}
+							<div class="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-orange-700 text-xs font-black text-white">
+								{(f.founderName||'FN').slice(0,2).toUpperCase()}
+							</div>
+						{/if}
 						<div class="text-left">
 							<p class="text-[11px] font-black leading-tight text-white">{f.founderName}</p>
-							<p class="text-[9px] text-gray-400">{f.distanceM}m away</p>
+							<p class="text-[9px] text-orange-400 font-bold">{f.bizName}</p>
+							<p class="text-[8px] text-gray-500">{f.distanceM}m away</p>
 						</div>
 					</button>
 				{/each}
@@ -332,8 +355,15 @@
 			<div class="mx-auto mb-5 h-1 w-12 rounded-full bg-white/20"></div>
 
 			<div class="mb-6 flex items-center gap-4">
-				<div class="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-linear-to-br from-orange-500 to-orange-700 text-2xl font-black text-white">
-					{(selectedFounder.founderName||'F')[0]}
+				<div class="shrink-0">
+					{#if selectedFounder.avatarUrl}
+						<img src={toDisplayUrl(selectedFounder.avatarUrl)} alt={selectedFounder.founderName}
+							class="h-16 w-16 rounded-2xl object-cover border-2 border-orange-500/30" />
+					{:else}
+						<div class="flex h-16 w-16 items-center justify-center rounded-2xl bg-linear-to-br from-orange-500 to-orange-700 text-2xl font-black text-white">
+							{(selectedFounder.founderName||'FN').slice(0,2).toUpperCase()}
+						</div>
+					{/if}
 				</div>
 				<div class="min-w-0 flex-1">
 					<h2 class="truncate text-lg font-black text-white">{selectedFounder.founderName}</h2>
