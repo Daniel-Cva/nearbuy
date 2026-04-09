@@ -108,7 +108,8 @@
 
 			if (!res.ok) {
 				const data = await res.json();
-				throw new Error(data.error || data.message || 'Failed to submit review');
+                console.error('Review submission failed:', data);
+				throw new Error(data.message || data.error || 'Failed to submit review');
 			}
 
 			submitted = true;
@@ -209,8 +210,12 @@
 						{#each attachments as media}
 							<div class="relative aspect-square overflow-hidden rounded-xl border border-gray-200 bg-gray-100 dark:border-gray-800 dark:bg-gray-800 shadow-sm">
 								{#if media.type === 'video'}
-									<div class="flex h-full w-full items-center justify-center bg-slate-900 text-white">
-										<span class="text-xs font-black uppercase tracking-tighter">Video</span>
+									<div class="h-full w-full bg-slate-900 border border-black/10">
+										<video 
+											src={toDisplayUrl(media.path)} 
+											class="h-full w-full object-cover" 
+											autoplay muted loop playsinline
+										></video>
 									</div>
 								{:else}
 									<img src={toDisplayUrl(media.path)} alt="Preview" class="h-full w-full object-cover" />

@@ -1,25 +1,35 @@
 import { json } from '@sveltejs/kit';
 
-/**
- * PATH: /api/orders/[id]
- * Consolidated order detail and lifecycle tracking.
- * Status flow:
- *   - 'b_completed' → Business marks job done (stored in acceptances, requests stays 'accepted')
- *   - 'completed'   → User confirms done (acceptances + requests both set to 'completed')
- *   - 'closed'      → Either party cancels
- */
+const normalize = (id) => String(id || '').replace(/^(usr_|biz_|ord_|req_|con_|not_|rev_|qu_)/, '').toLowerCase().trim();
+const isMatch = (a, b) => normalize(a) === normalize(b);
+
 export async function GET({ params, platform, locals }) {
     try {
         if (!locals.user) return json({ message: 'Unauthorized' }, { status: 401 });
         const db = platform.env.DB;
-        const bizId = locals.user.bizId || null;
+        const myId = locals.user.id || locals.user.userid;
+        const myBizId = locals.user.bizId || locals.user.biz_id || null;
         const orderId = params.id;
         
         const acc = await db.prepare('SELECT * FROM acceptances WHERE id = ?').bind(orderId).first();
         if (!acc) return json({ message: 'Order not found' }, { status: 404 });
 
-        if (acc.user_id !== locals.user.id && acc.business_id !== bizId) {
-             return json({ message: 'Forbidden' }, { status: 403 });
+        // EXTREMELY PERMISSIVE CHECK FOR DEBUGGING
+        const isOwner = isMatch(acc.user_id, myId);
+        const isMerchant = myBizId && (isMatch(acc.business_id, myBizId) || isMatch(acc.business_id, myId));
+
+        if (!isOwner && !isMerchant) {
+             console.warn(`[PERM] Denied: User ${myId} tried to access Order ${orderId} (Owner: ${acc.user_id}, Merchant: ${acc.business_id})`);
+             return json({ 
+                 message: 'Forbidden', 
+                 diagnostics: {
+                     your_id: myId,
+                     your_biz: myBizId,
+                     order_owner: acc.user_id,
+                     order_merchant: acc.business_id,
+                     match_found: { isOwner, isMerchant }
+                 }
+             }, { status: 403 });
         }
 
         const [userRes, bizRes, reqRes] = await db.batch([
@@ -29,7 +39,6 @@ export async function GET({ params, platform, locals }) {
         ]);
 
         const bizRow = bizRes.results[0] || {};
-
         return json({
              order: {
                 ...acc,
@@ -43,52 +52,33 @@ export async function GET({ params, platform, locals }) {
         });
 
     } catch (e) {
-        return json({ message: 'Internal server error', error: e.message }, { status: 500 });
+        return json({ message: 'Server Error', error: e.message }, { status: 500 });
     }
 }
 
-// PATCH: Update Order Status
 export async function PATCH({ params, request, platform, locals }) {
     try {
         if (!locals.user) return json({ message: 'Unauthorized' }, { status: 401 });
         const db = platform.env.DB;
-        const body = await request.json();
         const orderId = params.id;
-        const { status } = body;
-
-        if (!status) return json({ message: 'Status is required' }, { status: 400 });
-
+        const { status } = await request.json();
         const acc = await db.prepare('SELECT user_id, business_id, request_id FROM acceptances WHERE id = ?').bind(orderId).first();
-        if (!acc) return json({ message: 'Order not found' }, { status: 404 });
+        if (!acc) return json({ message: 'Not found' }, { status: 404 });
 
-        // Permission check
-        if (acc.user_id !== locals.user.id && acc.business_id !== locals.user.bizId) {
+        const myId = locals.user.id || locals.user.userid;
+        const myBizId = locals.user.bizId || locals.user.biz_id || null;
+
+        if (!isMatch(acc.user_id, myId) && !isMatch(acc.business_id, myBizId)) {
              return json({ message: 'Forbidden' }, { status: 403 });
         }
 
-        const ops = [
-            // Always update acceptances timestamp
-            db.prepare('UPDATE acceptances SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(orderId)
-        ];
-
-        if (status === 'b_completed') {
-            // Business marking done: store in acceptances only via a status field
-            // We add a b_status column concept: store it on requests as 'b_completed' temporarily
-            // so the user's order query (which reads req_status) shows 'b_completed'
-            ops.push(db.prepare('UPDATE requests SET status = ? WHERE id = ?').bind('b_completed', acc.request_id));
-        } else if (status === 'completed') {
-            // User confirms done: sync both tables
-            ops.push(db.prepare('UPDATE requests SET status = ? WHERE id = ?').bind('completed', acc.request_id));
-        } else if (status === 'closed') {
-            // Cancellation: sync both tables
-            ops.push(db.prepare('UPDATE requests SET status = ? WHERE id = ?').bind('closed', acc.request_id));
+        const ops = [db.prepare('UPDATE acceptances SET updated_at = CURRENT_TIMESTAMP WHERE id = ?').bind(orderId)];
+        if (status === 'b_completed' || status === 'completed' || status === 'closed') {
+            ops.push(db.prepare('UPDATE requests SET status = ? WHERE id = ?').bind(status, acc.request_id));
         }
-
         await db.batch(ops);
-
-        return json({ message: `Order status updated to ${status}` });
-
+        return json({ message: 'Updated' });
     } catch (e) {
-        return json({ message: 'Internal server error', error: e.message }, { status: 500 });
+        return json({ message: 'Error', error: e.message }, { status: 500 });
     }
 }

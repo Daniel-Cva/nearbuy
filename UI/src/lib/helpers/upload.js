@@ -43,7 +43,7 @@ export function toDisplayUrl(path) {
 }
 
 export async function uploadToUniversalApi(payload) {
-	const { type, file, userId, bizId, docName, itemId, imageName } = payload;
+	const { type, file, userId, bizId, docName, itemId, imageName, num } = payload;
 	if (!type) throw new Error('Upload type is required.');
 	if (!file) throw new Error('File is required.');
 
@@ -54,6 +54,7 @@ export async function uploadToUniversalApi(payload) {
 	if (docName) formData.append('docName', docName);
 	if (itemId) formData.append('itemId', itemId);
 	if (imageName) formData.append('imageName', imageName);
+	if (num) formData.append('num', num);
 	formData.append('file', file);
 
 	const response = await fetch(`${getApiBaseUrl()}/api/upload`, {

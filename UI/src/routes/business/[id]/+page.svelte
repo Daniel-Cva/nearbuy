@@ -1,7 +1,9 @@
 <script>
     import { page } from '$app/stores';
+    import { goto } from '$app/navigation';
     import { onMount } from 'svelte';
     import { API_BASE_URL } from '$lib/helpers/config.js';
+    import { toDisplayUrl } from '$lib/helpers/upload.js';
     import Icon from '@iconify/svelte';
     import NearBuyMap from '$lib/components/NearBuyMap.svelte';
 
@@ -51,6 +53,27 @@
             return cats;
         }
     }
+
+    async function startChat() {
+        if (!bizData) return;
+        try {
+            const res = await fetch(`${API_BASE_URL}/api/conversations`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify({ recipient_id: bizData.id, type: 'general' })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                goto(`/user/messages?conv=${data.id}`);
+            } else if (res.status === 401) {
+                alert('Please login to message businesses.');
+            }
+        } catch (e) {
+            console.error('Failed to start chat:', e);
+        }
+    }
 </script>
 
 <svelte:head>
@@ -79,7 +102,7 @@
             <div class="-mt-16 flex flex-col items-center sm:flex-row sm:items-end sm:gap-6">
                 <div class="h-32 w-32 shrink-0 overflow-hidden rounded-full border-4 border-white bg-white shadow-lg dark:border-gray-900">
                     {#if bizData.avatar_url}
-                        <img src={bizData.avatar_url} alt={bizData.bname} class="h-full w-full object-cover" />
+                        <img src={toDisplayUrl(bizData.avatar_url)} alt={bizData.bname} class="h-full w-full object-cover" />
                     {:else}
                         <div class="flex h-full items-center justify-center bg-gray-100 dark:bg-gray-800 text-3xl font-black text-orange-500">
                             {bizData.bname?.[0]?.toUpperCase()}
@@ -101,7 +124,9 @@
                 
                 <!-- Action Buttons -->
                 <div class="mt-6 flex gap-3 sm:mt-0 sm:mb-2">
-                    <button class="flex items-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 font-bold text-white transition-all hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100">
+                    <button 
+                        onclick={startChat}
+                        class="flex items-center gap-2 rounded-xl bg-gray-900 px-5 py-2.5 font-bold text-white transition-all hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100 active:scale-95">
                         <Icon icon="mdi:chat" width="20" height="20" /> Message
                     </button>
                     <button class="flex h-11 w-11 items-center justify-center rounded-xl bg-orange-100 text-orange-600 transition-colors hover:bg-orange-200 dark:bg-orange-900/30 dark:text-orange-400">
@@ -135,7 +160,7 @@
                                 <a href={`/user/item/${item.id}`} class="group relative flex flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all hover:-translate-y-1 hover:border-orange-500 hover:shadow-xl dark:border-gray-800 dark:bg-gray-900">
                                     <div class="aspect-square w-full bg-gray-100 dark:bg-gray-800 overflow-hidden">
                                         {#if mainImg}
-                                            <img src={mainImg} alt={item.product_name} class="h-full w-full object-cover transition-transform group-hover:scale-110" />
+                                            <img src={toDisplayUrl(mainImg)} alt={item.product_name} class="h-full w-full object-cover transition-transform group-hover:scale-110" />
                                         {:else}
                                             <div class="flex h-full items-center justify-center">
                                                 <Icon icon="mdi:package-variant" width="48" height="48" class="text-gray-300 dark:text-gray-600" />
@@ -147,9 +172,9 @@
                                         {#if item.brand}
                                             <p class="mt-0.5 text-[10px] font-black uppercase tracking-widest text-gray-400">{item.brand}</p>
                                         {/if}
-                                        <div class="mt-auto pt-3 flex items-center justify-between">
-                                            <p class="text-lg font-black text-orange-600 dark:text-orange-400">₹{itemPrice}</p>
-                                            <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{item.category}</span>
+                                        <div class="mt-auto pt-3 flex items-center justify-between border-t border-gray-50 dark:border-gray-800">
+                                            <span class="text-[10px] font-black text-orange-600 uppercase tracking-widest">View Details</span>
+                                            <span class="text-[9px] font-bold text-gray-400 uppercase tracking-widest truncate max-w-[100px]">{item.category}</span>
                                         </div>
                                     </div>
                                 </a>
@@ -184,7 +209,7 @@
                                             zoom={14} 
                                             markers={bizMarkers} 
                                             height="100%" 
-                                            interactive={false}
+                                            interactive={true}
                                         />
                                     {:else}
                                         <div class="flex h-full items-center justify-center text-gray-400 gap-2">

@@ -317,13 +317,52 @@
 				</div>
 			{:else}
 				<div class="space-y-4">
-					{#each reviews.slice(0, 3) as rev}
-						<div class="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-							<div class="mb-2 flex items-center justify-between">
-								<span class="text-xs font-bold">{rev.firstname ?? 'User'}</span>
-								<span class="text-xs text-yellow-500">{'⭐'.repeat(rev.rating)}</span>
+					{#each reviews.slice(0, 5) as rev}
+						{@const revImgs = JSON.parse(rev.image_url || '[]')}
+						{@const revVids = JSON.parse(rev.review_video_url || '[]')}
+						<div class="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-gray-900 space-y-3">
+							<div class="flex items-center justify-between">
+								<div class="flex items-center gap-2">
+									<div class="h-8 w-8 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+										{#if rev.avatar_url}
+											<img src={toDisplayUrl(rev.avatar_url)} alt="Avatar" class="h-full w-full object-cover" />
+										{:else}
+											<div class="flex h-full w-full items-center justify-center bg-orange-500 text-white font-bold text-[10px]">
+												{(rev.firstname || 'U')[0]}
+											</div>
+										{/if}
+									</div>
+									<div class="flex flex-col">
+										<span class="text-xs font-black">{rev.firstname} {rev.lastname || ''}</span>
+										<span class="text-[9px] text-gray-400 uppercase font-bold tracking-tighter">Verified Buyer</span>
+									</div>
+								</div>
+								<div class="flex gap-0.5 text-[10px]">
+									{#each Array(5) as _, i}
+										<span class={i < rev.rating ? 'text-yellow-500' : 'text-gray-200 dark:text-gray-700'}>⭐</span>
+									{/each}
+								</div>
 							</div>
-							<p class="text-sm text-gray-600 dark:text-gray-400">{rev.review_text}</p>
+							
+							<p class="text-sm text-gray-600 dark:text-gray-300 leading-relaxed">{rev.review_text || 'No text provided.'}</p>
+							
+							{#if revImgs.length > 0 || revVids.length > 0}
+								<div class="flex gap-2 overflow-x-auto pb-2 hide-scrollbar">
+									{#each revImgs as img}
+										<button class="h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-gray-100 dark:border-gray-800">
+											<img src={toDisplayUrl(img)} alt="Review" class="h-full w-full object-cover" />
+										</button>
+									{/each}
+									{#each revVids as vid}
+										<div class="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-slate-900 border border-gray-100 dark:border-gray-800 relative">
+											<video src={toDisplayUrl(vid)} class="h-full w-full object-cover" muted></video>
+											<div class="absolute inset-0 flex items-center justify-center bg-black/20">
+												<Icon icon="mdi:play-circle" class="text-white/80" />
+											</div>
+										</div>
+									{/each}
+								</div>
+							{/if}
 						</div>
 					{/each}
 				</div>

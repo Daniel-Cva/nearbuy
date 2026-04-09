@@ -6,7 +6,8 @@
 
 	$effect(() => {
 		const storedTheme = localStorage.getItem('theme');
-		if (storedTheme === 'dark' || (!storedTheme && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+		// Default to Light mode unless 'dark' is explicitly chosen
+		if (storedTheme === 'dark') {
 			document.documentElement.classList.add('dark');
 		} else {
 			document.documentElement.classList.remove('dark');
